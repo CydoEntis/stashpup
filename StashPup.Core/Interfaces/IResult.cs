@@ -2,5 +2,6 @@
 
 public interface IResult
 {
-    
+    bool Success { get; }
+    string? ErrorMessage { get; }
 }
