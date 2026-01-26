@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StashPup.Core\StashPup.Core.csproj" />
+    <ProjectReference Include="..\StashPup.Storage.Local\StashPup.Storage.Local.csproj" />
+    <ProjectReference Include="..\StashPup.Storage.S3\StashPup.Storage.S3.csproj" />
+    <ProjectReference Include="..\StashPup.Storage.Azure\StashPup.Storage.Azure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
