@@ -1,4 +1,4 @@
-﻿namespace StashPup.Core.Exceptions;
+namespace StashPup.Core.Exceptions;
 
 public class FileStorageException
 {
