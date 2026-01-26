@@ -1,5 +1,9 @@
 # StashPup 🐶
 
+<p align="center">
+  <img src="stashpup.png" alt="StashPup Logo" width="200" style="border-radius: 20px;"/>
+</p>
+
 **A flexible, provider-agnostic file storage library for .NET with built-in ASP.NET Core integration.**
 
 StashPup simplifies file storage in .NET applications by providing a unified interface for local filesystem, AWS S3, and Azure Blob Storage. It includes advanced features like thumbnail generation, signed URLs, metadata management, and powerful search capabilities.
