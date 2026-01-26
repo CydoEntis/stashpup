@@ -126,6 +126,7 @@ public interface IFileStorage
     /// <param name="folder">Optional folder filter (null = all files)</param>
     /// <param name="page">Page number (1-based)</param>
     /// <param name="pageSize">Items per page (max 1000)</param>
+    /// <param name="ct">Cancellation token.</param>
     Task<Result<PaginatedResult<FileRecord>>> ListAsync(
         string? folder = null,
         int page = 1,

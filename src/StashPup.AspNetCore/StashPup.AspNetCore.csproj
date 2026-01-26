@@ -11,7 +11,7 @@
         <Title>StashPup.AspNetCore - ASP.NET Core Integration</Title>
         <Description>
             ASP.NET Core integration for StashPup.
-            Provides StashPupService, middleware for file serving, pre-built minimal API endpoints, and IFormFile support.
+            Provides pre-built minimal API endpoints, middleware for file serving, and IFormFile support.
             Includes dependency injection extensions for easy configuration.
         </Description>
         <PackageTags>file-storage;aspnetcore;webapi;middleware;endpoints;upload;dotnet</PackageTags>
@@ -43,9 +43,19 @@
 
         <!-- Release Notes -->
         <PackageReleaseNotes>
+            Version 0.2.0 - Architecture Refactor
+            - Refactored to Vertical Slice Architecture (VSA)
+            - Each feature is self-contained (handler, endpoints, models)
+            - Removed redundant service abstraction layers
+            - Fixed multipart/form-data handling in upload endpoint
+            - Fixed ambiguous IResult references
+            - Handlers directly inject IFileStorage
+            - Simplified naming: UploadHandler, DownloadHandler, etc.
+            - Improved maintainability and extensibility
+            
             Version 0.1.0 - Initial Release
-            - StashPupService for simplified file operations
-            - IFormFile upload support
+            - Pre-built minimal API endpoints for file operations
+            - IFormFile upload support via endpoints
             - UseStashPup middleware for file serving
             - MapStashPupEndpoints for automatic API generation
             - Dependency injection extensions (AddStashPup)

@@ -72,10 +72,12 @@ app.Run();
 ### 2. Upload a File
 
 ```csharp
-app.MapPost("/upload", async (IFormFile file, StashPupService service) =>
+app.MapPost("/upload", async (IFormFile file, IFileStorage storage) =>
 {
-    var result = await service.UploadAsync(
-        file,
+    await using var stream = file.OpenReadStream();
+    var result = await storage.SaveAsync(
+        stream,
+        file.FileName,
         folder: "documents",
         metadata: new Dictionary<string, string>
         {
@@ -386,13 +388,15 @@ app.MapStashPupEndpoints("/api/files", options =>
 ```csharp
 app.MapPost("/api/upload-avatar", async (
     IFormFile file,
-    StashPupService service,
+    IFileStorage storage,
     ClaimsPrincipal user) =>
 {
     var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
-    var result = await service.UploadAsync(
-        file,
+    await using var stream = file.OpenReadStream();
+    var result = await storage.SaveAsync(
+        stream,
+        file.FileName,
         folder: $"avatars/{userId}",
         metadata: new Dictionary<string, string>
         {
@@ -524,10 +528,9 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## 📚 Additional Documentation
 
-- [Full Usage Guide](USAGE_GUIDE.md) - Detailed examples for every feature
-- [Integration Guide](INTEGRATION_GUIDE.md) - Step-by-step project integration
-- [API Reference](API_REFERENCE.md) - Complete API documentation
-- [Examples](EXAMPLES.md) - Real-world code examples
+- [Avatar Integration](AVATAR_INTEGRATION.md) - Complete guide for avatar uploads in other projects
+- [Git Commit Guide](GIT_COMMIT.md) - How to commit changes and publish packages
+- [Start Here](START_HERE.md) - Quick overview and next steps
 
 ## 🆘 Support
 
