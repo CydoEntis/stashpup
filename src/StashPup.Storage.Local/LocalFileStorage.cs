@@ -1,245 +1,976 @@
-﻿using StashPup.Core.Core;
+using System.Text.Json;
+using StashPup.Core.Core;
 using StashPup.Core.Interfaces;
 using StashPup.Core.Models;
 using StashPup.Core.Validation;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Formats.Jpeg;
 
 namespace StashPup.Storage.Local;
 
+/// <summary>
+/// Local filesystem provider implementation.
+/// Stores files on the local filesystem with metadata companion files.
+/// </summary>
 public class LocalFileStorage : IFileStorage
 {
-    private LocalStorageOptions _options { get; set; }
+    private readonly LocalStorageOptions _options;
+    private const int BufferSize = 81920;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="LocalFileStorage"/> class.
+    /// </summary>
+    /// <param name="options">Local storage configuration options.</param>
+    /// <exception cref="ArgumentNullException">Thrown when options is null.</exception>
     public LocalFileStorage(LocalStorageOptions options)
     {
-        _options = options;
+        _options = options ?? throw new ArgumentNullException(nameof(options));
     }
 
+    /// <inheritdoc/>
+    public string ProviderName => "Local";
 
-    public async Task<Result<FileRecord>> SaveAsync(Stream content, string fileName, FileStorageOptions? options = null)
+    public async Task<Result<FileRecord>> SaveAsync(
+        Stream content,
+        string fileName,
+        string? folder = null,
+        Dictionary<string, string>? metadata = null,
+        CancellationToken ct = default)
     {
         try
         {
-            var selectedOptions = (options as LocalStorageOptions) ?? _options;
+            if (content.CanSeek && content.Position > 0)
+                content.Position = 0;
 
-            var fileValidationResult = FileStorageValidator.ValidateFile(content, fileName, selectedOptions);
-            if (!fileValidationResult.Success)
-                return Result<FileRecord>.Fail(fileValidationResult.ErrorMessage, fileValidationResult.ErrorCode);
+            var validation = FileStorageValidator.Validate(content, fileName, _options);
+            if (!validation.Success)
+                return Result<FileRecord>.Fail(validation);
 
-            string finalFileName = ResolveFileName(fileName, selectedOptions);
-            string subFolder = ResolveSubFolder(finalFileName, selectedOptions);
+            var fileId = Guid.NewGuid();
+            var extension = Path.GetExtension(fileName);
+            var storageFileName = $"{fileId}{extension}";
+            var resolvedFolder = ResolveFolder(folder, fileName, fileId);
+            var fullPath = GetFilePath(fileId, resolvedFolder, storageFileName);
+            var fullDirectory = Path.GetDirectoryName(fullPath)!;
 
-            string fullPath = ComputeFullPath(selectedOptions.BasePath, subFolder, finalFileName);
-            var filePathValidator = LocalStorageValidator.ValidateLocalFilePath(fullPath, selectedOptions);
-            if (!filePathValidator.Success)
-                return Result<FileRecord>.Fail(filePathValidator.ErrorMessage, filePathValidator.ErrorCode);
+            var pathValidation = LocalStorageValidator.ValidateLocalFilePath(fullPath, _options);
+            if (!pathValidation.Success)
+                return Result<FileRecord>.Fail(pathValidation);
 
-            var request = new FileSaveRequest
-            {
-                Content = content,
-                OriginalFileName = fileName,
-                Options = selectedOptions,
-                FinalFileName = finalFileName,
-                SubFolder = subFolder,
-                Hash = null,
-                ContentType = null,
-                Metadata = null
-            };
-
-            return await _SaveStreamAsync(request);
-        }
-        catch (Exception)
-        {
-            return Result<FileRecord>.Fail(
-                FileStorageErrors.UnexpectedErrorMessage(),
-                FileStorageErrors.UnexpectedError
-            );
-        }
-    }
-
-
-    public Task<Result<(FileRecord Record, byte[] Content)>> GetAsync(Guid id)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<bool>> DeleteAsync(Guid id)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<FileRecord>> RenameAsync(Guid id, string newName)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<FileRecord>> MoveAsync(Guid id, string newPath)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<FileRecord>> CopyAsync(Guid id, string newPath)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<IReadOnlyList<FileRecord>>> BulkSaveAsync(IEnumerable<(Stream Content, string FileName)> files,
-        FileStorageOptions? options = null)
-    {
-        throw new NotImplementedException();
-    }
-
-
-    public Task<Result<IReadOnlyList<FileRecord>>> BulkDeleteAsync(IEnumerable<Guid> ids)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<IReadOnlyList<FileRecord>>> BulkMoveAsync(IEnumerable<(Guid Id, string NewPath)> moves)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<IReadOnlyList<FileRecord>>> BulkCopyAsync(IEnumerable<(Guid Id, string NewPath)> copies)
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<Result<PaginatedResult<FileRecord>>> ListAsync(string? folder = null, int page = 1, int pageSize = 100)
-    {
-        throw new NotImplementedException();
-    }
-
-
-    private async Task<Result<FileRecord>> _SaveStreamAsync(FileSaveRequest request)
-    {
-        string fullDirectory = Path.Combine(request.Options.BasePath, request.SubFolder);
-        string fullPath = Path.Combine(fullDirectory, request.FinalFileName!);
-
-        try
-        {
-            if (request.Options.AutoCreateDirectories && !Directory.Exists(fullDirectory))
+            if (_options.AutoCreateDirectories && !Directory.Exists(fullDirectory))
                 Directory.CreateDirectory(fullDirectory);
 
-            if (!request.Options.OverwriteExisting && File.Exists(fullPath))
+            if (!_options.OverwriteExisting && File.Exists(fullPath))
                 return Result<FileRecord>.Fail(
-                    FileStorageErrors.FileAlreadyExistsMessage(request.FinalFileName!),
-                    FileStorageErrors.FileAlreadyExists
-                );
+                    FileStorageErrors.FileAlreadyExistsMessage(storageFileName),
+                    FileStorageErrors.FileAlreadyExists);
 
-            using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            var contentType = FileStorageValidator.DetectContentType(content, fileName);
+            if (content.CanSeek)
+                content.Position = 0;
 
-            byte[] buffer = new byte[81920];
-            int bytesRead;
-            long totalBytesRead = 0;
-
-            while ((bytesRead = await request.Content.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            string? hash = null;
+            if (_options.ComputeHash)
             {
-                totalBytesRead += bytesRead;
-
-                if (request.Options.MaxFileSizeBytes.HasValue &&
-                    totalBytesRead > request.Options.MaxFileSizeBytes.Value)
-                    return Result<FileRecord>.Fail(
-                        FileStorageErrors.MaxFileSizeExceededMessage(request.Options.MaxFileSizeBytes.Value),
-                        FileStorageErrors.MaxFileSizeExceeded
-                    );
-
-                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                hash = await ComputeFileHashAsync(content, ct);
+                if (content.CanSeek)
+                    content.Position = 0;
             }
 
-            var savedFileRecord = new FileRecord
+            long totalBytes = 0;
+            await using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            var buffer = new byte[BufferSize];
+            int bytesRead;
+
+            while ((bytesRead = await content.ReadAsync(buffer, ct)) > 0)
             {
-                Id = Guid.NewGuid(),
-                Name = request.FinalFileName!,
-                OriginalName = request.OriginalFileName,
-                Extension = Path.GetExtension(request.FinalFileName),
-                SizeBytes = totalBytesRead,
+                totalBytes += bytesRead;
+
+                if (_options.MaxFileSizeBytes.HasValue && totalBytes > _options.MaxFileSizeBytes.Value)
+                {
+                    await fileStream.DisposeAsync();
+                    File.Delete(fullPath);
+                    return Result<FileRecord>.Fail(
+                        FileStorageErrors.MaxFileSizeExceededMessage(_options.MaxFileSizeBytes.Value),
+                        FileStorageErrors.MaxFileSizeExceeded);
+                }
+
+                await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
+            }
+
+            var record = new FileRecord
+            {
+                Id = fileId,
+                Name = fileName,
+                OriginalName = fileName,
+                Extension = extension,
+                ContentType = contentType,
+                SizeBytes = totalBytes,
                 CreatedAtUtc = DateTime.UtcNow,
                 UpdatedAtUtc = DateTime.UtcNow,
-                Hash = request.Hash,
-                FullPath = fullPath,
-                SubFolder = request.SubFolder,
-                ContentType = request.ContentType,
-                Metadata = request.Metadata
+                Hash = hash,
+                Folder = resolvedFolder,
+                StoragePath = fullPath,
+                Metadata = metadata
             };
 
-            return Result<FileRecord>.Ok(savedFileRecord);
+            await SaveMetadataAsync(record, ct);
+
+            return Result<FileRecord>.Ok(record);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<FileRecord>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
         }
         catch (UnauthorizedAccessException)
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.PermissionDeniedMessage(),
-                FileStorageErrors.PermissionDenied
-            );
+                FileStorageErrors.PermissionDenied);
         }
-        catch (IOException ex) when (ex.Message.Contains("No space left on device"))
+        catch (IOException ex) when (ex.Message.Contains("No space left on device") || ex.Message.Contains("disk is full"))
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.DiskFullMessage(),
-                FileStorageErrors.DiskFull
-            );
+                FileStorageErrors.DiskFull);
         }
         catch (IOException)
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.IOErrorMessage(),
-                FileStorageErrors.IOError
-            );
+                FileStorageErrors.IOError);
         }
         catch (OutOfMemoryException)
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.MemoryErrorMessage(),
-                FileStorageErrors.MemoryError
-            );
+                FileStorageErrors.MemoryError);
         }
         catch (ArgumentException)
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.InvalidFileNameMessage(),
-                FileStorageErrors.InvalidFileName
-            );
+                FileStorageErrors.InvalidFileName);
         }
         catch (Exception)
         {
             return Result<FileRecord>.Fail(
                 FileStorageErrors.UnexpectedErrorMessage(),
-                FileStorageErrors.UnexpectedError
-            );
+                FileStorageErrors.UnexpectedError);
         }
     }
 
-    private string ComputeHash(string input)
+    public async Task<Result<Stream>> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<Stream>.Fail(metadataResult);
+
+            var record = metadataResult.Data!;
+            var filePath = record.StoragePath;
+
+            if (!File.Exists(filePath))
+                return Result<Stream>.Fail(
+                    FileStorageErrors.FileNotFoundMessage(id),
+                    FileStorageErrors.FileNotFound);
+
+            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return Result<Stream>.Ok(stream);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<Stream>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Result<Stream>.Fail(
+                FileStorageErrors.PermissionDeniedMessage(),
+                FileStorageErrors.PermissionDenied);
+        }
+        catch (FileNotFoundException)
+        {
+            return Result<Stream>.Fail(
+                FileStorageErrors.FileNotFoundMessage(id),
+                FileStorageErrors.FileNotFound);
+        }
+        catch (Exception)
+        {
+            return Result<Stream>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<FileRecord>> GetMetadataAsync(Guid id, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataPath = GetMetadataPath(id);
+            if (File.Exists(metadataPath))
+            {
+                var json = await File.ReadAllTextAsync(metadataPath, ct);
+                var record = JsonSerializer.Deserialize<FileRecord>(json);
+                if (record != null)
+                    return Result<FileRecord>.Ok(record);
+            }
+
+            var foundPath = FindFileById(id);
+            if (foundPath == null)
+                return Result<FileRecord>.Fail(
+                    FileStorageErrors.FileNotFoundMessage(id),
+                    FileStorageErrors.FileNotFound);
+
+            var fileInfo = new FileInfo(foundPath);
+            var extension = Path.GetExtension(foundPath);
+            var fileName = Path.GetFileName(foundPath);
+
+            var fileRecord = new FileRecord
+            {
+                Id = id,
+                Name = fileName,
+                OriginalName = fileName,
+                Extension = extension,
+                ContentType = FileStorageValidator.DetectContentType(File.OpenRead(foundPath), fileName),
+                SizeBytes = fileInfo.Length,
+                CreatedAtUtc = fileInfo.CreationTimeUtc,
+                UpdatedAtUtc = fileInfo.LastWriteTimeUtc,
+                Folder = Path.GetRelativePath(_options.BasePath, fileInfo.DirectoryName ?? ""),
+                StoragePath = foundPath
+            };
+
+            return Result<FileRecord>.Ok(fileRecord);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<FileRecord>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<FileRecord>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<bool>> DeleteAsync(Guid id, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<bool>.Ok(false);
+
+            var record = metadataResult.Data!;
+            var deleted = false;
+
+            if (File.Exists(record.StoragePath))
+            {
+                File.Delete(record.StoragePath);
+                deleted = true;
+            }
+
+            var metadataPath = GetMetadataPath(id);
+            if (File.Exists(metadataPath))
+                File.Delete(metadataPath);
+
+            return Result<bool>.Ok(deleted);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<bool>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<bool>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public Task<Result<bool>> ExistsAsync(Guid id, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataPath = GetMetadataPath(id);
+            if (File.Exists(metadataPath))
+                return Task.FromResult(Result<bool>.Ok(true));
+
+            var foundPath = FindFileById(id);
+            return Task.FromResult(Result<bool>.Ok(foundPath != null));
+        }
+        catch (Exception)
+        {
+            return Task.FromResult(Result<bool>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError));
+        }
+    }
+
+    public async Task<Result<FileRecord>> RenameAsync(Guid id, string newName, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<FileRecord>.Fail(metadataResult);
+
+            var record = metadataResult.Data!;
+            record.Name = newName;
+            record.UpdatedAtUtc = DateTime.UtcNow;
+
+            await SaveMetadataAsync(record, ct);
+            return Result<FileRecord>.Ok(record);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<FileRecord>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<FileRecord>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<FileRecord>> MoveAsync(Guid id, string newFolder, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<FileRecord>.Fail(metadataResult);
+
+            var record = metadataResult.Data!;
+            var oldPath = record.StoragePath;
+            var extension = Path.GetExtension(record.StoragePath);
+            var storageFileName = $"{id}{extension}";
+            var newFolderPath = string.IsNullOrWhiteSpace(newFolder) ? "" : newFolder.Trim('/');
+            var newFullPath = Path.Combine(_options.BasePath, newFolderPath, storageFileName);
+            var newDirectory = Path.GetDirectoryName(newFullPath)!;
+
+            if (_options.AutoCreateDirectories && !Directory.Exists(newDirectory))
+                Directory.CreateDirectory(newDirectory);
+
+            if (File.Exists(oldPath))
+                File.Move(oldPath, newFullPath);
+
+            record.Folder = newFolderPath;
+            record.StoragePath = newFullPath;
+            record.UpdatedAtUtc = DateTime.UtcNow;
+
+            await SaveMetadataAsync(record, ct);
+            return Result<FileRecord>.Ok(record);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<FileRecord>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<FileRecord>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<FileRecord>> CopyAsync(Guid id, string newFolder, CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<FileRecord>.Fail(metadataResult);
+
+            var record = metadataResult.Data!;
+            var newId = Guid.NewGuid();
+            var extension = Path.GetExtension(record.StoragePath);
+            var storageFileName = $"{newId}{extension}";
+            var newFolderPath = string.IsNullOrWhiteSpace(newFolder) ? "" : newFolder.Trim('/');
+            var newFullPath = Path.Combine(_options.BasePath, newFolderPath, storageFileName);
+            var newDirectory = Path.GetDirectoryName(newFullPath)!;
+
+            if (_options.AutoCreateDirectories && !Directory.Exists(newDirectory))
+                Directory.CreateDirectory(newDirectory);
+
+            if (File.Exists(record.StoragePath))
+                File.Copy(record.StoragePath, newFullPath);
+
+            var newRecord = new FileRecord
+            {
+                Id = newId,
+                Name = record.Name,
+                OriginalName = record.OriginalName,
+                Extension = record.Extension,
+                ContentType = record.ContentType,
+                SizeBytes = record.SizeBytes,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow,
+                Hash = record.Hash,
+                Folder = newFolderPath,
+                StoragePath = newFullPath,
+                Metadata = record.Metadata
+            };
+
+            await SaveMetadataAsync(newRecord, ct);
+            return Result<FileRecord>.Ok(newRecord);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<FileRecord>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<FileRecord>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<FileRecord>>> BulkSaveAsync(
+        IEnumerable<BulkSaveItem> files,
+        string? folder = null,
+        CancellationToken ct = default)
+    {
+        var results = new List<FileRecord>();
+        var errors = new List<string>();
+
+        foreach (var file in files)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var result = await SaveAsync(file.Content, file.FileName, folder, file.Metadata, ct);
+            if (result.Success)
+                results.Add(result.Data!);
+            else
+                errors.Add(result.ErrorMessage ?? "Unknown error");
+        }
+
+        if (errors.Any())
+            return Result<IReadOnlyList<FileRecord>>.Fail(
+                $"Some files failed to save: {string.Join("; ", errors)}",
+                FileStorageErrors.ValidationFailed);
+
+        return Result<IReadOnlyList<FileRecord>>.Ok(results);
+    }
+
+    public async Task<Result<IReadOnlyList<Guid>>> BulkDeleteAsync(
+        IEnumerable<Guid> ids,
+        CancellationToken ct = default)
+    {
+        var deleted = new List<Guid>();
+
+        foreach (var id in ids)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var result = await DeleteAsync(id, ct);
+            if (result.Success && result.Data)
+                deleted.Add(id);
+        }
+
+        return Result<IReadOnlyList<Guid>>.Ok(deleted);
+    }
+
+    public async Task<Result<PaginatedResult<FileRecord>>> ListAsync(
+        string? folder = null,
+        int page = 1,
+        int pageSize = 100,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 100;
+            if (pageSize > 1000) pageSize = 1000;
+
+            var searchPath = string.IsNullOrWhiteSpace(folder)
+                ? _options.BasePath
+                : Path.Combine(_options.BasePath, folder.Trim('/'));
+
+            if (!Directory.Exists(searchPath))
+                return Result<PaginatedResult<FileRecord>>.Ok(new PaginatedResult<FileRecord>
+                {
+                    Items = [],
+                    Page = page,
+                    PageSize = pageSize,
+                    TotalItems = 0
+                });
+
+            var allFiles = new List<FileRecord>();
+            var metadataFiles = Directory.GetFiles(searchPath, "*.meta.json", SearchOption.AllDirectories);
+
+            foreach (var metaFile in metadataFiles)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(metaFile, ct);
+                    var record = JsonSerializer.Deserialize<FileRecord>(json);
+                    if (record != null)
+                        allFiles.Add(record);
+                }
+                catch
+                {
+                }
+            }
+
+            var totalItems = allFiles.Count;
+            var skip = (page - 1) * pageSize;
+            var items = allFiles.Skip(skip).Take(pageSize).ToList();
+
+            return Result<PaginatedResult<FileRecord>>.Ok(new PaginatedResult<FileRecord>
+            {
+                Items = items,
+                Page = page,
+                PageSize = pageSize,
+                TotalItems = totalItems
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<PaginatedResult<FileRecord>>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<PaginatedResult<FileRecord>>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<PaginatedResult<FileRecord>>> SearchAsync(
+        SearchParameters searchParameters,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (searchParameters.Page < 1) searchParameters.Page = 1;
+            if (searchParameters.PageSize < 1) searchParameters.PageSize = 100;
+            if (searchParameters.PageSize > 1000) searchParameters.PageSize = 1000;
+
+            var searchPath = string.IsNullOrWhiteSpace(searchParameters.Folder)
+                ? _options.BasePath
+                : Path.Combine(_options.BasePath, searchParameters.Folder.Trim('/'));
+
+            if (!Directory.Exists(searchPath))
+                return Result<PaginatedResult<FileRecord>>.Ok(new PaginatedResult<FileRecord>
+                {
+                    Items = [],
+                    Page = searchParameters.Page,
+                    PageSize = searchParameters.PageSize,
+                    TotalItems = 0
+                });
+
+            var allFiles = new List<FileRecord>();
+            var metadataFiles = Directory.GetFiles(searchPath, "*.meta.json", SearchOption.AllDirectories);
+
+            foreach (var metaFile in metadataFiles)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(metaFile, ct);
+                    var record = JsonSerializer.Deserialize<FileRecord>(json);
+                    if (record != null && MatchesSearchCriteria(record, searchParameters))
+                        allFiles.Add(record);
+                }
+                catch
+                {
+                }
+            }
+
+            allFiles = ApplySorting(allFiles, searchParameters.SortBy, searchParameters.SortDirection);
+
+            var totalItems = allFiles.Count;
+            var skip = (searchParameters.Page - 1) * searchParameters.PageSize;
+            var items = allFiles.Skip(skip).Take(searchParameters.PageSize).ToList();
+
+            return Result<PaginatedResult<FileRecord>>.Ok(new PaginatedResult<FileRecord>
+            {
+                Items = items,
+                Page = searchParameters.Page,
+                PageSize = searchParameters.PageSize,
+                TotalItems = totalItems
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<PaginatedResult<FileRecord>>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<PaginatedResult<FileRecord>>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<Stream>> GetThumbnailAsync(
+        Guid id,
+        ThumbnailSize size = ThumbnailSize.Medium,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var metadataResult = await GetMetadataAsync(id, ct);
+            if (!metadataResult.Success)
+                return Result<Stream>.Fail(metadataResult);
+
+            var record = metadataResult.Data!;
+
+            if (!IsImageContentType(record.ContentType))
+                return Result<Stream>.Fail(
+                    $"File {id} is not an image. Content type: {record.ContentType}",
+                    FileStorageErrors.InvalidFileType);
+
+            if (!File.Exists(record.StoragePath))
+                return Result<Stream>.Fail(
+                    FileStorageErrors.FileNotFoundMessage(id),
+                    FileStorageErrors.FileNotFound);
+
+            var thumbnailPath = GetThumbnailPath(id, size);
+            var thumbnailDir = Path.GetDirectoryName(thumbnailPath)!;
+
+            if (!Directory.Exists(thumbnailDir))
+                Directory.CreateDirectory(thumbnailDir);
+
+            if (File.Exists(thumbnailPath))
+            {
+                var thumbnailInfo = new FileInfo(thumbnailPath);
+                var sourceInfo = new FileInfo(record.StoragePath);
+
+                if (thumbnailInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
+                {
+                    var existingStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return Result<Stream>.Ok(existingStream);
+                }
+            }
+
+            await GenerateThumbnailAsync(record.StoragePath, thumbnailPath, size, ct);
+
+            var thumbnailStream = new FileStream(thumbnailPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return Result<Stream>.Ok(thumbnailStream);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<Stream>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (NotSupportedException ex)
+        {
+            return Result<Stream>.Fail(
+                $"Image format not supported: {ex.Message}",
+                FileStorageErrors.InvalidFileType);
+        }
+        catch (Exception ex)
+        {
+            return Result<Stream>.Fail(
+                $"Failed to generate thumbnail: {ex.Message}",
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public string? GetPublicUrl(Guid id)
+    {
+        return $"{_options.BaseUrl.TrimEnd('/')}/{id}";
+    }
+
+    public async Task<Result<string>> GetSignedUrlAsync(
+        Guid id,
+        TimeSpan expiry,
+        CancellationToken ct = default)
+    {
+        if (!_options.EnableSignedUrls)
+            return Result<string>.Fail(
+                "Signed URLs are not enabled for this provider.",
+                FileStorageErrors.SignedUrlNotSupported);
+
+        if (string.IsNullOrWhiteSpace(_options.SigningKey))
+            return Result<string>.Fail(
+                "Signing key is not configured.",
+                FileStorageErrors.SignedUrlNotSupported);
+
+        // Verify file exists
+        var existsResult = await ExistsAsync(id, ct);
+        if (!existsResult.Success || !existsResult.Data)
+            return Result<string>.Fail(
+                FileStorageErrors.FileNotFoundMessage(id),
+                FileStorageErrors.FileNotFound);
+
+        // Generate signed URL (simplified - in production use proper HMAC)
+        var baseUrl = GetPublicUrl(id);
+        var expires = DateTimeOffset.UtcNow.Add(expiry).ToUnixTimeSeconds();
+        var signature = ComputeSignature($"{id}:{expires}", _options.SigningKey);
+        var signedUrl = $"{baseUrl}?expires={expires}&signature={signature}";
+
+        return Result<string>.Ok(signedUrl);
+    }
+
+    private string GetFilePath(Guid id, string? folder, string fileName)
+    {
+        var folderPath = string.IsNullOrWhiteSpace(folder) ? "" : folder.Trim('/');
+        return Path.Combine(_options.BasePath, folderPath, fileName);
+    }
+
+    private string GetMetadataPath(Guid id)
+    {
+        var metadataDir = Path.Combine(_options.BasePath, ".metadata");
+        if (!Directory.Exists(metadataDir))
+            Directory.CreateDirectory(metadataDir);
+
+        return Path.Combine(metadataDir, $"{id}.meta.json");
+    }
+
+    private async Task SaveMetadataAsync(FileRecord record, CancellationToken ct)
+    {
+        var metadataPath = GetMetadataPath(record.Id);
+        var json = JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = false });
+        await File.WriteAllTextAsync(metadataPath, json, ct);
+    }
+
+    private string ResolveFolder(string? folder, string fileName, Guid fileId)
+    {
+        if (!string.IsNullOrWhiteSpace(folder))
+            return folder.Trim('/');
+
+        if (_options.SubfolderStrategy != null)
+        {
+            var tempRecord = new FileRecord
+            {
+                Id = fileId,
+                Name = fileName,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+            var strategyFolder = _options.SubfolderStrategy(tempRecord);
+            if (!string.IsNullOrWhiteSpace(strategyFolder))
+                return strategyFolder.Trim('/');
+        }
+
+        return "";
+    }
+
+    private async Task<string> ComputeFileHashAsync(Stream content, CancellationToken ct)
     {
         using var sha256 = System.Security.Cryptography.SHA256.Create();
-        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(input);
-        byte[] hashBytes = sha256.ComputeHash(bytes);
-        return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+        var buffer = new byte[BufferSize];
+        int bytesRead;
+        var originalPosition = content.Position;
+        content.Position = 0;
+
+        try
+        {
+            while ((bytesRead = await content.ReadAsync(buffer, ct)) > 0)
+            {
+                sha256.TransformBlock(buffer, 0, bytesRead, null, 0);
+            }
+            sha256.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            var hashBytes = sha256.Hash ?? throw new InvalidOperationException("Hash computation failed");
+            return Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+        finally
+        {
+            content.Position = originalPosition;
+        }
     }
 
-    private string ResolveFileName(string fileName, LocalStorageOptions options)
+    private string? FindFileById(Guid id)
     {
-        var extension = Path.GetExtension(fileName);
+        if (!Directory.Exists(_options.BasePath))
+            return null;
 
-        if (options.HashFileName)
-            return ComputeHash(fileName) + extension;
-
-        if (options.NamingStrategy is not null)
-            return options.NamingStrategy(fileName) + extension;
-
-        return fileName;
+        var searchPattern = $"{id}.*";
+        var files = Directory.GetFiles(_options.BasePath, searchPattern, SearchOption.AllDirectories);
+        return files.FirstOrDefault();
     }
 
-    private string ResolveSubFolder(string finalFileName, LocalStorageOptions options)
+    private string ComputeSignature(string data, string key)
     {
-        if (options.SubFolderStrategy is null)
-            return string.Empty;
-
-        var tempRecord = new FileRecord { Name = finalFileName };
-        return options.SubFolderStrategy(tempRecord) ?? string.Empty;
+        using var hmac = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(key));
+        var hashBytes = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(data));
+        return Convert.ToBase64String(hashBytes);
     }
 
-    private string ComputeFullPath(string basePath, string subFolder, string finalFileName)
+    private string GetThumbnailPath(Guid id, ThumbnailSize size)
     {
-        return Path.Combine(basePath, subFolder, finalFileName);
+        var thumbnailsDir = Path.Combine(_options.BasePath, ".thumbnails", size.ToString().ToLowerInvariant());
+        return Path.Combine(thumbnailsDir, $"{id}.jpg");
+    }
+
+    private bool IsImageContentType(string contentType)
+    {
+        return contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase) &&
+               !contentType.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase); // SVG not supported for thumbnails
+    }
+
+    private async Task GenerateThumbnailAsync(string sourcePath, string thumbnailPath, ThumbnailSize size, CancellationToken ct)
+    {
+        try
+        {
+            using var sourceImage = await Image.LoadAsync(sourcePath, ct);
+            var targetSize = (int)size;
+            var (width, height) = CalculateThumbnailDimensions(sourceImage.Width, sourceImage.Height, targetSize);
+
+            sourceImage.Mutate(x => x.Resize(new ResizeOptions
+            {
+                Size = new Size(width, height),
+                Mode = ResizeMode.Max
+            }));
+
+            await sourceImage.SaveAsync(thumbnailPath, new JpegEncoder { Quality = 85 }, ct);
+        }
+        catch (UnknownImageFormatException)
+        {
+            throw new NotSupportedException("Image format not supported or file corrupted");
+        }
+        catch (InvalidImageContentException)
+        {
+            throw new NotSupportedException("Invalid image format");
+        }
+    }
+
+    private (int width, int height) CalculateThumbnailDimensions(int originalWidth, int originalHeight, int maxSize)
+    {
+        if (originalWidth <= maxSize && originalHeight <= maxSize)
+            return (originalWidth, originalHeight);
+
+        var aspectRatio = (double)originalWidth / originalHeight;
+        
+        if (originalWidth > originalHeight)
+        {
+            return (maxSize, (int)(maxSize / aspectRatio));
+        }
+        else
+        {
+            return ((int)(maxSize * aspectRatio), maxSize);
+        }
+    }
+
+    private bool MatchesSearchCriteria(FileRecord record, SearchParameters parameters)
+    {
+        if (!string.IsNullOrWhiteSpace(parameters.NamePattern))
+        {
+            var pattern = parameters.NamePattern.Replace("*", ".*").Replace("?", ".");
+            var regex = new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!regex.IsMatch(record.Name))
+                return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.Folder))
+        {
+            var recordFolder = record.Folder ?? "";
+            var searchFolder = parameters.Folder.Trim('/');
+            if (!recordFolder.Equals(searchFolder, StringComparison.OrdinalIgnoreCase) &&
+                !recordFolder.StartsWith(searchFolder + "/", StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.Extension))
+        {
+            if (!record.Extension.Equals(parameters.Extension, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.ContentType))
+        {
+            if (parameters.ContentType.EndsWith("/*"))
+            {
+                var contentTypePrefix = parameters.ContentType[..^1];
+                if (!record.ContentType.StartsWith(contentTypePrefix, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            else if (!record.ContentType.Equals(parameters.ContentType, StringComparison.OrdinalIgnoreCase))
+                return false;
+        }
+
+        if (parameters.MinSizeBytes.HasValue && record.SizeBytes < parameters.MinSizeBytes.Value)
+            return false;
+
+        if (parameters.MaxSizeBytes.HasValue && record.SizeBytes > parameters.MaxSizeBytes.Value)
+            return false;
+
+        if (parameters.CreatedAfter.HasValue && record.CreatedAtUtc < parameters.CreatedAfter.Value)
+            return false;
+
+        if (parameters.CreatedBefore.HasValue && record.CreatedAtUtc > parameters.CreatedBefore.Value)
+            return false;
+
+        if (parameters.UpdatedAfter.HasValue && record.UpdatedAtUtc < parameters.UpdatedAfter.Value)
+            return false;
+
+        if (parameters.UpdatedBefore.HasValue && record.UpdatedAtUtc > parameters.UpdatedBefore.Value)
+            return false;
+
+        if (parameters.Metadata != null && parameters.Metadata.Any())
+        {
+            if (record.Metadata == null)
+                return false;
+
+            foreach (var kvp in parameters.Metadata)
+            {
+                if (!record.Metadata.TryGetValue(kvp.Key, out var recordValue) ||
+                    !recordValue.Equals(kvp.Value, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private List<FileRecord> ApplySorting(List<FileRecord> files, SearchSortField sortBy, SearchSortDirection direction)
+    {
+        return sortBy switch
+        {
+            SearchSortField.Name => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList()
+                : files.OrderByDescending(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList(),
+
+            SearchSortField.Size => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.SizeBytes).ToList()
+                : files.OrderByDescending(f => f.SizeBytes).ToList(),
+
+            SearchSortField.CreatedAt => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.CreatedAtUtc).ToList()
+                : files.OrderByDescending(f => f.CreatedAtUtc).ToList(),
+
+            SearchSortField.UpdatedAt => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.UpdatedAtUtc).ToList()
+                : files.OrderByDescending(f => f.UpdatedAtUtc).ToList(),
+
+            SearchSortField.Extension => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.Extension, StringComparer.OrdinalIgnoreCase).ToList()
+                : files.OrderByDescending(f => f.Extension, StringComparer.OrdinalIgnoreCase).ToList(),
+
+            SearchSortField.ContentType => direction == SearchSortDirection.Ascending
+                ? files.OrderBy(f => f.ContentType, StringComparer.OrdinalIgnoreCase).ToList()
+                : files.OrderByDescending(f => f.ContentType, StringComparer.OrdinalIgnoreCase).ToList(),
+
+            _ => files // Default: no sorting
+        };
     }
 }
