@@ -1,4 +1,4 @@
-﻿namespace StashPup.Core.Core;
+namespace StashPup.Core.Core;
 
 public class HashGenerator
 {
