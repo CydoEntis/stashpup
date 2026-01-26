@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using StashPup.AspNetCore;
 using StashPup.Core.Interfaces;
 using StashPup.Storage.Azure;
 using StashPup.Storage.Local;
@@ -73,7 +72,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IFileStorage, LocalFileStorage>();
-        services.AddScoped<StashPupService>();
 
         return services;
     }
@@ -90,7 +88,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IFileStorage, S3FileStorage>();
-        services.AddScoped<StashPupService>();
 
         return services;
     }
@@ -107,7 +104,6 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton(options);
         services.AddSingleton<IFileStorage, AzureBlobFileStorage>();
-        services.AddScoped<StashPupService>();
 
         return services;
     }
@@ -141,7 +137,6 @@ public class StashPupBuilder
 
         Services.AddSingleton(options);
         Services.AddSingleton<IFileStorage, LocalFileStorage>();
-        Services.AddScoped<StashPupService>();
 
         return this;
     }
@@ -158,7 +153,6 @@ public class StashPupBuilder
 
         Services.AddSingleton(options);
         Services.AddSingleton<IFileStorage, S3FileStorage>();
-        Services.AddScoped<StashPupService>();
 
         return this;
     }
@@ -175,7 +169,6 @@ public class StashPupBuilder
 
         Services.AddSingleton(options);
         Services.AddSingleton<IFileStorage, AzureBlobFileStorage>();
-        Services.AddScoped<StashPupService>();
 
         return this;
     }
