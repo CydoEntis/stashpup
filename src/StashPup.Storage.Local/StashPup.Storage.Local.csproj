@@ -1,17 +1,74 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- Package Identity -->
+        <PackageId>StashPup.Storage.Local</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>StashPup Contributors</Authors>
+        <Company>StashPup</Company>
+
+        <!-- Package Details -->
+        <Title>StashPup.Storage.Local - Local Filesystem Storage Provider</Title>
+        <Description>
+            Local filesystem storage provider for StashPup.
+            Implements IFileStorage for local disk storage with folder organization, metadata files, and thumbnail generation.
+            Perfect for development, testing, or self-hosted scenarios.
+        </Description>
+        <PackageTags>file-storage;local;filesystem;storage;files;upload;thumbnails</PackageTags>
+        <PackageProjectUrl>https://github.com/CydoEntis/stashpup</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/CydoEntis/stashpup</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <!-- License and Copyright -->
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>Copyright (c) 2025 StashPup Contributors</Copyright>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Build Configuration -->
         <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- NuGet Package Settings -->
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+        <!-- Release Notes -->
+        <PackageReleaseNotes>
+            Version 0.1.0 - Initial Release
+            - Complete IFileStorage implementation for local filesystem
+            - Folder organization with virtual folders
+            - Metadata storage in companion JSON files
+            - Thumbnail generation with ImageSharp
+            - SHA-256 file hashing
+            - HMAC signed URL generation
+            - Advanced search and pagination
+        </PackageReleaseNotes>
     </PropertyGroup>
 
+    <!-- Include README in package -->
     <ItemGroup>
-      <ProjectReference Include="..\StashPup.Core\StashPup.Core.csproj" />
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     </ItemGroup>
 
+    <!-- Source Link -->
     <ItemGroup>
-        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.6" />
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+    <!-- Dependencies -->
+    <ItemGroup>
+        <ProjectReference Include="..\StashPup.Core\StashPup.Core.csproj" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
 
 </Project>

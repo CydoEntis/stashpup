@@ -1,18 +1,75 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- Package Identity -->
+        <PackageId>StashPup.Storage.Azure</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>StashPup Contributors</Authors>
+        <Company>StashPup</Company>
+
+        <!-- Package Details -->
+        <Title>StashPup.Storage.Azure - Azure Blob Storage Provider</Title>
+        <Description>
+            Azure Blob Storage provider for StashPup.
+            Implements IFileStorage for Azure Blob Storage with SAS tokens, access tiers, and public access support.
+            Supports thumbnail caching and metadata storage in blob metadata.
+        </Description>
+        <PackageTags>file-storage;azure;blob;cloud;storage;files;upload;microsoft</PackageTags>
+        <PackageProjectUrl>https://github.com/CydoEntis/stashpup</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/CydoEntis/stashpup</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <!-- License and Copyright -->
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>Copyright (c) 2025 StashPup Contributors</Copyright>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Build Configuration -->
         <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- NuGet Package Settings -->
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+        <!-- Release Notes -->
+        <PackageReleaseNotes>
+            Version 0.1.0 - Initial Release
+            - Complete IFileStorage implementation for Azure Blob Storage
+            - SAS token generation for signed URLs
+            - Access tier support (Hot, Cool, Archive)
+            - Public blob access support
+            - Thumbnail generation and caching in blobs
+            - Blob metadata for file information
+            - Advanced search and pagination
+        </PackageReleaseNotes>
     </PropertyGroup>
 
+    <!-- Include README in package -->
     <ItemGroup>
-        <ProjectReference Include="..\StashPup.Core\StashPup.Core.csproj" />
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
     </ItemGroup>
 
+    <!-- Source Link -->
     <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+    <!-- Dependencies -->
+    <ItemGroup>
+        <ProjectReference Include="..\StashPup.Core\StashPup.Core.csproj" />
         <PackageReference Include="Azure.Storage.Blobs" Version="12.22.0" />
-        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.6" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     </ItemGroup>
 
 </Project>

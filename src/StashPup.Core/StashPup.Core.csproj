@@ -1,10 +1,68 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- Package Identity -->
+        <PackageId>StashPup.Core</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>StashPup Contributors</Authors>
+        <Company>StashPup</Company>
+
+        <!-- Package Details -->
+        <Title>StashPup.Core - Provider-Agnostic File Storage</Title>
+        <Description>
+            Core library for StashPup, a flexible file storage abstraction for .NET.
+            Provides unified interface (IFileStorage) for local filesystem, AWS S3, and Azure Blob Storage.
+            Features: advanced search, pagination, thumbnails, signed URLs, metadata, SHA-256 hashing, and bulk operations.
+        </Description>
+        <PackageTags>file-storage;storage;files;upload;cloud;s3;azure;local;abstraction;provider-agnostic</PackageTags>
+        <PackageProjectUrl>https://github.com/CydoEntis/stashpup</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/CydoEntis/stashpup</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <!-- License and Copyright -->
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>Copyright (c) 2025 StashPup Contributors</Copyright>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <!-- Build Configuration -->
         <TargetFramework>net9.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+
+        <!-- NuGet Package Settings -->
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+        <!-- Documentation -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+        <!-- Release Notes -->
+        <PackageReleaseNotes>
+            Version 0.1.0 - Initial Release
+            - Core IFileStorage interface with 15 methods
+            - Result pattern for error handling
+            - FileRecord model with complete metadata
+            - SearchParameters for advanced filtering
+            - Support for pagination, sorting, and bulk operations
+            - Thumbnail size enumeration
+            - Validation and error handling
+        </PackageReleaseNotes>
     </PropertyGroup>
 
+    <!-- Include README in package -->
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <!-- Source Link for debugging -->
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
+    </ItemGroup>
 
 </Project>
