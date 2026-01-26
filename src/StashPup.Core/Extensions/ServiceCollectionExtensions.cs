@@ -1,4 +1,4 @@
-﻿namespace StashPup.Core.Extensions;
+namespace StashPup.Core.Extensions;
 
 public class ServiceCollectionExtensions
 {
