@@ -3,3 +3,21 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# Demo application uploads
+demo/uploads/
+demo/.metadata/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.cache
+
+# Build results
+*.dll
+*.pdb
+*.exe
+*.xml
+!Directory.Build.props
