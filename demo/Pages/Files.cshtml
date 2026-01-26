@@ -1,0 +1,520 @@
+@page
+@model StashPup.Demo.Pages.FilesModel
+@{
+    ViewData["Title"] = "File Storage Demo";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Sidebar Filters -->
+        <div class="col-md-3">
+            <div class="card mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-funnel"></i> Filters</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" id="filterForm">
+                        <!-- Search Query -->
+                        <div class="mb-3">
+                            <label for="searchQuery" class="form-label">Search Files</label>
+                            <input type="text" class="form-control" id="searchQuery" name="searchQuery"
+                                   value="@Model.SearchQuery" placeholder="*.jpg, report-*">
+                            <small class="form-text text-muted">Supports wildcards: * and ?</small>
+                        </div>
+
+                        <!-- Folder -->
+                        <div class="mb-3">
+                            <label for="folder" class="form-label">Folder</label>
+                            <input type="text" class="form-control" id="folder" name="folder"
+                                   value="@Model.Folder" placeholder="photos/vacation">
+                        </div>
+
+                        <!-- Content Type -->
+                        <div class="mb-3">
+                            <label for="contentType" class="form-label">File Type</label>
+                            <select class="form-select" id="contentType" name="contentType">
+                                <option value="">All Types</option>
+                                <option value="image/*" selected="@(Model.ContentType == "image/*")">Images</option>
+                                <option value="application/pdf" selected="@(Model.ContentType == "application/pdf")">PDF</option>
+                                <option value="text/*" selected="@(Model.ContentType == "text/*")">Text Files</option>
+                                <option value="application/*" selected="@(Model.ContentType == "application/*")">Applications</option>
+                            </select>
+                        </div>
+
+                        <!-- Extension -->
+                        <div class="mb-3">
+                            <label for="extension" class="form-label">Extension</label>
+                            <input type="text" class="form-control" id="extension" name="extension"
+                                   value="@Model.Extension" placeholder=".jpg">
+                        </div>
+
+                        <!-- Size Range -->
+                        <div class="mb-3">
+                            <label class="form-label">File Size</label>
+                            <div class="row">
+                                <div class="col-6">
+                                    <input type="number" class="form-control form-control-sm" name="minSize"
+                                           value="@Model.MinSize" placeholder="Min (bytes)">
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" class="form-control form-control-sm" name="maxSize"
+                                           value="@Model.MaxSize" placeholder="Max (bytes)">
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Quick: 1MB = 1048576</small>
+                        </div>
+
+                        <!-- Sort Options -->
+                        <div class="mb-3">
+                            <label for="sortBy" class="form-label">Sort By</label>
+                            <select class="form-select form-select-sm" id="sortBy" name="sortBy">
+                                <option value="Name" selected="@(Model.SortBy == "Name")">Name</option>
+                                <option value="Size" selected="@(Model.SortBy == "Size")">Size</option>
+                                <option value="CreatedAt" selected="@(Model.SortBy == "CreatedAt")">Upload Date</option>
+                                <option value="UpdatedAt" selected="@(Model.SortBy == "UpdatedAt")">Modified Date</option>
+                                <option value="Extension" selected="@(Model.SortBy == "Extension")">Extension</option>
+                                <option value="ContentType" selected="@(Model.SortBy == "ContentType")">Type</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="sortDirection" class="form-label">Order</label>
+                            <select class="form-select form-select-sm" id="sortDirection" name="sortDirection">
+                                <option value="Ascending" selected="@(Model.SortDirection == "Ascending")">Ascending</option>
+                                <option value="Descending" selected="@(Model.SortDirection == "Descending")">Descending</option>
+                            </select>
+                        </div>
+
+                        <!-- Page Size -->
+                        <div class="mb-3">
+                            <label for="pageSize" class="form-label">Items Per Page</label>
+                            <select class="form-select form-select-sm" id="pageSize" name="pageSize">
+                                <option value="10" selected="@(Model.PageSize == 10)">10</option>
+                                <option value="20" selected="@(Model.PageSize == 20)">20</option>
+                                <option value="50" selected="@(Model.PageSize == 50)">50</option>
+                                <option value="100" selected="@(Model.PageSize == 100)">100</option>
+                            </select>
+                        </div>
+
+                        <input type="hidden" name="viewMode" value="@Model.ViewMode" />
+                        <input type="hidden" name="page" value="1" />
+
+                        <button type="submit" class="btn btn-primary w-100 mb-2">
+                            <i class="bi bi-search"></i> Apply Filters
+                        </button>
+                        <a href="/Files" class="btn btn-outline-secondary w-100">
+                            <i class="bi bi-x-circle"></i> Clear All
+                        </a>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="col-md-9">
+            <h1 class="mb-4">
+                <i class="bi bi-folder2-open"></i> StashPup File Manager
+                <small class="text-muted fs-6">(@Model.TotalItems files)</small>
+            </h1>
+
+            <!-- Messages -->
+            @if (!string.IsNullOrEmpty(Model.SuccessMessage))
+            {
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle"></i> @Model.SuccessMessage
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i> @Model.ErrorMessage
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            }
+
+            <!-- Upload Section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#singleUpload">
+                                <i class="bi bi-file-earmark-arrow-up"></i> Single Upload
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#bulkUpload">
+                                <i class="bi bi-files"></i> Bulk Upload
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Single Upload -->
+                        <div class="tab-pane fade show active" id="singleUpload">
+                            <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="file" class="form-label">Select File</label>
+                                        <input type="file" class="form-control" id="file" name="file" required>
+                                        <div class="form-text">Max 50MB. Allowed: Images, PDFs, Documents, Text</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="uploadFolder" class="form-label">Folder (optional)</label>
+                                        <input type="text" class="form-control" id="uploadFolder" name="folder"
+                                               placeholder="e.g., photos/vacation">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">&nbsp;</label>
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="bi bi-upload"></i> Upload
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Bulk Upload -->
+                        <div class="tab-pane fade" id="bulkUpload">
+                            <form method="post" enctype="multipart/form-data" asp-page-handler="BulkUpload">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="bulkFiles" class="form-label">Select Multiple Files</label>
+                                        <input type="file" class="form-control" id="bulkFiles" name="files" multiple required>
+                                        <div class="form-text">Hold Ctrl/Cmd to select multiple files</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="bulkFolder" class="form-label">Folder (optional)</label>
+                                        <input type="text" class="form-control" id="bulkFolder" name="folder"
+                                               placeholder="e.g., documents/2024">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label">&nbsp;</label>
+                                        <button type="submit" class="btn btn-success w-100">
+                                            <i class="bi bi-files"></i> Upload All
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View Controls -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <strong>@Model.TotalItems</strong> files found
+                    @if (!string.IsNullOrEmpty(Model.SearchQuery) || !string.IsNullOrEmpty(Model.ContentType))
+                    {
+                        <span class="text-muted">(filtered)</span>
+                    }
+                </div>
+                <div class="btn-group" role="group">
+                    <a href="?viewMode=list&searchQuery=@Model.SearchQuery&folder=@Model.Folder&contentType=@Model.ContentType&sortBy=@Model.SortBy&sortDirection=@Model.SortDirection&page=@Model.CurrentPage&pageSize=@Model.PageSize"
+                       class="btn btn-sm @(Model.ViewMode == "list" ? "btn-primary" : "btn-outline-primary")">
+                        <i class="bi bi-list-ul"></i> List
+                    </a>
+                    <a href="?viewMode=grid&searchQuery=@Model.SearchQuery&folder=@Model.Folder&contentType=@Model.ContentType&sortBy=@Model.SortBy&sortDirection=@Model.SortDirection&page=@Model.CurrentPage&pageSize=@Model.PageSize"
+                       class="btn btn-sm @(Model.ViewMode == "grid" ? "btn-primary" : "btn-outline-primary")">
+                        <i class="bi bi-grid-3x3"></i> Grid
+                    </a>
+                </div>
+            </div>
+
+            <!-- File Display -->
+            @if (Model.Files.Any())
+            {
+                @if (Model.ViewMode == "grid")
+                {
+                    <!-- Grid View -->
+                    <div class="row row-cols-1 row-cols-md-3 row-cols-lg-4 g-4 mb-4">
+                        @foreach (var file in Model.Files)
+                        {
+                            <div class="col">
+                                <div class="card h-100">
+                                    @if (file.ContentType.StartsWith("image/"))
+                                    {
+                                        <img src="/Files?handler=Thumbnail&id=@file.Id&size=medium"
+                                             class="card-img-top" alt="@file.Name" style="height: 200px; object-fit: cover;">
+                                    }
+                                    else
+                                    {
+                                        <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 200px;">
+                                            <i class="bi @GetFileIcon(file.ContentType) display-1 text-muted"></i>
+                                        </div>
+                                    }
+                                    <div class="card-body">
+                                        <h6 class="card-title text-truncate" title="@file.Name">@file.Name</h6>
+                                        <p class="card-text small">
+                                            <span class="badge bg-secondary">@FormatBytes(file.SizeBytes)</span>
+                                            <span class="badge bg-info">@file.Extension</span>
+                                        </p>
+                                        <p class="card-text">
+                                            <small class="text-muted">@file.CreatedAtUtc.ToString("g")</small>
+                                        </p>
+                                    </div>
+                                    <div class="card-footer bg-transparent">
+                                        <div class="btn-group w-100" role="group">
+                                            <a href="/Files?handler=Download&id=@file.Id" class="btn btn-sm btn-primary" title="Download">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal"
+                                                    data-bs-target="#previewModal" onclick="loadFilePreview('@file.Id', '@file.Name', '@file.ContentType')" title="Preview">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <form method="post" asp-page-handler="Delete" style="display: inline;"
+                                                  onsubmit="return confirm('Delete @file.Name?');">
+                                                <input type="hidden" name="id" value="@file.Id" />
+                                                <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- List View -->
+                    <div class="table-responsive mb-4">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;"></th>
+                                    <th>Name</th>
+                                    <th>Size</th>
+                                    <th>Type</th>
+                                    <th>Folder</th>
+                                    <th>Uploaded</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var file in Model.Files)
+                                {
+                                    <tr>
+                                        <td>
+                                            @if (file.ContentType.StartsWith("image/"))
+                                            {
+                                                <img src="/Files?handler=Thumbnail&id=@file.Id&size=small"
+                                                     class="rounded" alt="@file.Name" style="width: 40px; height: 40px; object-fit: cover;">
+                                            }
+                                            else
+                                            {
+                                                <i class="bi @GetFileIcon(file.ContentType) fs-3 text-muted"></i>
+                                            }
+                                        </td>
+                                        <td>
+                                            <strong>@file.Name</strong>
+                                            @if (!string.IsNullOrEmpty(file.Hash))
+                                            {
+                                                <br><small class="text-muted font-monospace">@file.Hash[..8]...</small>
+                                            }
+                                        </td>
+                                        <td>@FormatBytes(file.SizeBytes)</td>
+                                        <td><span class="badge bg-secondary">@file.ContentType</span></td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(file.Folder))
+                                            {
+                                                <span class="badge bg-info">@file.Folder</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <small>@file.CreatedAtUtc.ToString("g")</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group" role="group">
+                                                <a href="/Files?handler=Download&id=@file.Id" class="btn btn-sm btn-primary" title="Download">
+                                                    <i class="bi bi-download"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal"
+                                                        data-bs-target="#previewModal" onclick="loadFilePreview('@file.Id', '@file.Name', '@file.ContentType')" title="Preview">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                                <form method="post" asp-page-handler="Delete" style="display: inline;"
+                                                      onsubmit="return confirm('Are you sure you want to delete @file.Name?');">
+                                                    <input type="hidden" name="id" value="@file.Id" />
+                                                    <button type="submit" class="btn btn-sm btn-danger" title="Delete">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                <!-- Pagination -->
+                @if (Model.TotalPages > 1)
+                {
+                    <nav>
+                        <ul class="pagination justify-content-center">
+                            <!-- Previous -->
+                            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">
+                                <a class="page-link" href="@BuildPageUrl(Model.CurrentPage - 1)">
+                                    <i class="bi bi-chevron-left"></i> Previous
+                                </a>
+                            </li>
+
+                            <!-- Page Numbers -->
+                            @for (int i = 1; i <= Model.TotalPages; i++)
+                            {
+                                @if (i == 1 || i == Model.TotalPages || (i >= Model.CurrentPage - 2 && i <= Model.CurrentPage + 2))
+                                {
+                                    <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                        <a class="page-link" href="@BuildPageUrl(i)">@i</a>
+                                    </li>
+                                }
+                                else if (i == Model.CurrentPage - 3 || i == Model.CurrentPage + 3)
+                                {
+                                    <li class="page-item disabled">
+                                        <span class="page-link">...</span>
+                                    </li>
+                                }
+                            }
+
+                            <!-- Next -->
+                            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">
+                                <a class="page-link" href="@BuildPageUrl(Model.CurrentPage + 1)">
+                                    Next <i class="bi bi-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+
+                    <div class="text-center text-muted">
+                        Page @Model.CurrentPage of @Model.TotalPages
+                        (showing @Model.Files.Count of @Model.TotalItems files)
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="alert alert-info text-center">
+                    <i class="bi bi-inbox display-1"></i>
+                    <h4 class="mt-3">No files found</h4>
+                    <p>Upload some files or adjust your filters to see results.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- File Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewFileName">File Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center" id="previewContent">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a id="previewDownloadBtn" href="#" class="btn btn-primary">
+                    <i class="bi bi-download"></i> Download
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+
+    private string GetFileIcon(string contentType)
+    {
+        if (contentType.StartsWith("image/")) return "bi-file-image";
+        if (contentType.StartsWith("video/")) return "bi-file-play";
+        if (contentType.StartsWith("audio/")) return "bi-file-music";
+        if (contentType.Contains("pdf")) return "bi-file-pdf";
+        if (contentType.Contains("word")) return "bi-file-word";
+        if (contentType.Contains("excel") || contentType.Contains("spreadsheet")) return "bi-file-excel";
+        if (contentType.Contains("powerpoint") || contentType.Contains("presentation")) return "bi-file-ppt";
+        if (contentType.StartsWith("text/")) return "bi-file-text";
+        if (contentType.Contains("zip") || contentType.Contains("compressed")) return "bi-file-zip";
+        return "bi-file-earmark";
+    }
+
+    private string BuildPageUrl(int page)
+    {
+        var query = $"?page={page}&pageSize={Model.PageSize}&viewMode={Model.ViewMode}";
+
+        if (!string.IsNullOrEmpty(Model.SearchQuery))
+            query += $"&searchQuery={Uri.EscapeDataString(Model.SearchQuery)}";
+
+        if (!string.IsNullOrEmpty(Model.Folder))
+            query += $"&folder={Uri.EscapeDataString(Model.Folder)}";
+
+        if (!string.IsNullOrEmpty(Model.ContentType))
+            query += $"&contentType={Uri.EscapeDataString(Model.ContentType)}";
+
+        if (!string.IsNullOrEmpty(Model.Extension))
+            query += $"&extension={Uri.EscapeDataString(Model.Extension)}";
+
+        if (Model.MinSize.HasValue)
+            query += $"&minSize={Model.MinSize}";
+
+        if (Model.MaxSize.HasValue)
+            query += $"&maxSize={Model.MaxSize}";
+
+        query += $"&sortBy={Model.SortBy}&sortDirection={Model.SortDirection}";
+
+        return query;
+    }
+}
+
+<script>
+    function loadFilePreview(fileId, fileName, contentType) {
+        document.getElementById('previewFileName').textContent = fileName;
+        document.getElementById('previewDownloadBtn').href = '/Files?handler=Download&id=' + fileId;
+
+        const previewContent = document.getElementById('previewContent');
+
+        if (contentType.startsWith('image/')) {
+            previewContent.innerHTML = '<img src="/Files?handler=Thumbnail&id=' + fileId + '&size=large" class="img-fluid" alt="' + fileName + '">';
+        } else {
+            previewContent.innerHTML = `
+                <div class="text-center p-5">
+                    <i class="bi bi-file-earmark display-1 text-muted"></i>
+                    <h4 class="mt-3">${fileName}</h4>
+                    <p class="text-muted">${contentType}</p>
+                    <p>Preview not available for this file type.</p>
+                    <a href="/Files?handler=Download&id=${fileId}" class="btn btn-primary">
+                        <i class="bi bi-download"></i> Download to View
+                    </a>
+                </div>
+            `;
+        }
+    }
+</script>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">

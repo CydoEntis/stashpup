@@ -1,0 +1,196 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "StashPup Demo";
+}
+
+<div class="container mt-5">
+    <div class="text-center mb-5">
+        <h1 class="display-3 fw-bold mb-3">
+            <i class="bi bi-box-seam text-primary"></i> StashPup
+        </h1>
+        <p class="lead text-muted mb-4">
+            Provider-Agnostic File Storage for .NET
+        </p>
+        <p class="fs-5 mb-4">
+            A powerful, flexible file storage library with support for Local, AWS S3, and Azure Blob Storage
+        </p>
+        <a href="/Files" class="btn btn-primary btn-lg px-5 py-3">
+            <i class="bi bi-folder2-open"></i> Launch File Manager
+        </a>
+    </div>
+
+    <hr class="my-5">
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 border-primary">
+                <div class="card-body text-center">
+                    <i class="bi bi-upload display-3 text-primary mb-3"></i>
+                    <h4 class="card-title">Smart Upload</h4>
+                    <p class="card-text">
+                        Single and bulk file uploads with automatic validation, content-type detection,
+                        and folder organization.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-success">
+                <div class="card-body text-center">
+                    <i class="bi bi-search display-3 text-success mb-3"></i>
+                    <h4 class="card-title">Advanced Search</h4>
+                    <p class="card-text">
+                        Filter by name patterns, content type, size, dates, and metadata.
+                        Sort by any field with pagination support.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-info">
+                <div class="card-body text-center">
+                    <i class="bi bi-images display-3 text-info mb-3"></i>
+                    <h4 class="card-title">Thumbnails</h4>
+                    <p class="card-text">
+                        Automatic thumbnail generation for images with multiple sizes
+                        and intelligent caching.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-md-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body text-center">
+                    <i class="bi bi-grid-3x3 display-3 text-warning mb-3"></i>
+                    <h4 class="card-title">View Modes</h4>
+                    <p class="card-text">
+                        Toggle between list and grid views. Perfect for browsing
+                        images or managing documents.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-danger">
+                <div class="card-body text-center">
+                    <i class="bi bi-folder2 display-3 text-danger mb-3"></i>
+                    <h4 class="card-title">Folders</h4>
+                    <p class="card-text">
+                        Organize files in virtual folders with nested structure
+                        support and breadcrumb navigation.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 border-secondary">
+                <div class="card-body text-center">
+                    <i class="bi bi-eye display-3 text-secondary mb-3"></i>
+                    <h4 class="card-title">Preview</h4>
+                    <p class="card-text">
+                        Quick preview modal for images with metadata display
+                        and direct download access.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-light mb-5">
+        <div class="card-body p-5">
+            <h3 class="text-center mb-4">
+                <i class="bi bi-star-fill text-warning"></i> All Features Demonstrated
+            </h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Single & bulk file upload</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Advanced search & filtering</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Pagination controls</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Thumbnail generation</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> List & grid view modes</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> File preview modal</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Folder organization</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Sort by multiple fields</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Content type detection</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> File size validation</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Extension filtering</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Metadata storage</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> SHA-256 file hashing</li>
+                        <li class="mb-2"><i class="bi bi-check-circle-fill text-success"></i> Wildcard search patterns</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-primary mb-5">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0"><i class="bi bi-code-square"></i> Quick Start</h4>
+        </div>
+        <div class="card-body">
+            <pre class="bg-dark text-light p-3 rounded"><code>// Install package
+dotnet add package StashPup.Core
+dotnet add package StashPup.Storage.Local
+dotnet add package StashPup.AspNetCore
+
+// Configure in Program.cs
+builder.Services.AddStashPup(stash => stash
+    .UseLocalStorage(options =>
+    {
+        options.BasePath = "./uploads";
+        options.MaxFileSizeBytes = 50 * 1024 * 1024;
+        options.AllowedExtensions = [".jpg", ".png", ".pdf"];
+    }));
+
+app.UseStashPup();
+app.MapStashPupEndpoints("/api/files");
+
+// Use in your code
+var result = await fileStorage.SaveAsync(stream, "photo.jpg");
+if (result.Success)
+    Console.WriteLine($"File ID: {result.Data.Id}");</code></pre>
+        </div>
+    </div>
+
+    <div class="text-center mb-5">
+        <h3 class="mb-4">Storage Providers</h3>
+        <div class="row g-3 justify-content-center">
+            <div class="col-auto">
+                <span class="badge bg-primary fs-5 px-4 py-3">
+                    <i class="bi bi-hdd"></i> Local Filesystem
+                </span>
+            </div>
+            <div class="col-auto">
+                <span class="badge bg-warning text-dark fs-5 px-4 py-3">
+                    <i class="bi bi-cloud"></i> AWS S3
+                </span>
+            </div>
+            <div class="col-auto">
+                <span class="badge bg-info fs-5 px-4 py-3">
+                    <i class="bi bi-cloud-fill"></i> Azure Blob Storage
+                </span>
+            </div>
+        </div>
+        <p class="text-muted mt-3">All providers implement the same IFileStorage interface</p>
+    </div>
+
+    <div class="text-center mt-5 pt-5 border-top">
+        <a href="/Files" class="btn btn-primary btn-lg px-5 py-3">
+            <i class="bi bi-folder2-open"></i> Try the Demo Now
+        </a>
+        <p class="text-muted mt-3">
+            <small>No database required • Files stored in ./uploads • Full-featured demo</small>
+        </p>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
