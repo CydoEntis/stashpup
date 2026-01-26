@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using StashPup.AspNetCore;
 using StashPup.Core.Interfaces;
 using StashPup.Core.Models;
 
@@ -8,12 +7,10 @@ namespace StashPup.Demo.Pages;
 
 public class FilesModel : PageModel
 {
-    private readonly StashPupService _storage;
     private readonly IFileStorage _fileStorage;
 
-    public FilesModel(StashPupService storage, IFileStorage fileStorage)
+    public FilesModel(IFileStorage fileStorage)
     {
-        _storage = storage;
         _fileStorage = fileStorage;
     }
 
@@ -107,7 +104,9 @@ public class FilesModel : PageModel
             return Page();
         }
 
-        var result = await _storage.UploadAsync(file, folder);
+        await using var stream = file.OpenReadStream();
+        var result = await _fileStorage.SaveAsync(stream, file.FileName, folder, null);
+        
         if (result.Success)
         {
             SuccessMessage = $"File '{result.Data!.Name}' uploaded successfully!";
@@ -175,8 +174,8 @@ public class FilesModel : PageModel
 
     public async Task<IActionResult> OnPostDeleteAsync(Guid id, string? folder = null)
     {
-        var result = await _storage.DeleteAsync(id);
-        if (result.Success)
+        var result = await _fileStorage.DeleteAsync(id);
+        if (result.Success && result.Data)
         {
             SuccessMessage = "File deleted successfully.";
         }

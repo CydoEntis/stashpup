@@ -1,5 +1,5 @@
 using StashPup.AspNetCore.Extensions;
-using StashPup.AspNetCore.Endpoints;
+using StashPup.AspNetCore.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
