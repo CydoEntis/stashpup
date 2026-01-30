@@ -526,7 +526,8 @@ public class LocalFileStorage : IFileStorage
                 {
                     var json = await File.ReadAllTextAsync(metaFile, ct);
                     var record = JsonSerializer.Deserialize<FileRecord>(json);
-                    if (record != null)
+                    // Filter out placeholder files from list results
+                    if (record != null && record.Name != ".stashpup_folder")
                         allFiles.Add(record);
                 }
                 catch
@@ -594,7 +595,10 @@ public class LocalFileStorage : IFileStorage
                 {
                     var json = await File.ReadAllTextAsync(metaFile, ct);
                     var record = JsonSerializer.Deserialize<FileRecord>(json);
-                    if (record != null && MatchesSearchCriteria(record, searchParameters))
+                    // Filter out placeholder files from search results
+                    if (record != null && 
+                        record.Name != ".stashpup_folder" && 
+                        MatchesSearchCriteria(record, searchParameters))
                         allFiles.Add(record);
                 }
                 catch
@@ -730,6 +734,199 @@ public class LocalFileStorage : IFileStorage
         var signedUrl = $"{baseUrl}?expires={expires}&signature={signature}";
 
         return Result<string>.Ok(signedUrl);
+    }
+
+    public async Task<Result<IReadOnlyList<FileRecord>>> BulkMoveAsync(
+        IEnumerable<Guid> ids,
+        string newFolder,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var movedRecords = new List<FileRecord>();
+            var idsList = ids.ToList();
+
+            foreach (var id in idsList)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var moveResult = await MoveAsync(id, newFolder, ct);
+                if (moveResult.Success)
+                    movedRecords.Add(moveResult.Data!);
+            }
+
+            return Result<IReadOnlyList<FileRecord>>.Ok(movedRecords);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<IReadOnlyList<FileRecord>>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<IReadOnlyList<FileRecord>>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<IReadOnlyList<string>>> ListFoldersAsync(
+        string? parentFolder = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (!Directory.Exists(_options.BasePath))
+                return Result<IReadOnlyList<string>>.Ok(Array.Empty<string>());
+
+            var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var metadataFiles = Directory.GetFiles(_options.BasePath, "*.meta.json", SearchOption.AllDirectories);
+
+            foreach (var metaFile in metadataFiles)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(metaFile, ct);
+                    var record = JsonSerializer.Deserialize<FileRecord>(json);
+                    
+                    if (record?.Folder != null)
+                    {
+                        var folder = record.Folder.Trim('/');
+                        
+                        if (string.IsNullOrWhiteSpace(parentFolder))
+                        {
+                            // No parent filter - add all unique folders
+                            folders.Add(folder);
+                        }
+                        else
+                        {
+                            // Filter by parent folder - return immediate children only
+                            var parent = parentFolder.Trim('/');
+                            if (folder.StartsWith(parent + "/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var relative = folder.Substring(parent.Length + 1);
+                                var firstSegment = relative.Split('/')[0];
+                                folders.Add($"{parent}/{firstSegment}");
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // Skip invalid metadata files
+                }
+            }
+
+            return Result<IReadOnlyList<string>>.Ok(folders.OrderBy(f => f).ToList());
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<IReadOnlyList<string>>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<IReadOnlyList<string>>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<int>> DeleteFolderAsync(
+        string folder,
+        bool recursive = true,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(folder))
+                return Result<int>.Fail(
+                    "Folder path cannot be empty.",
+                    FileStorageErrors.ValidationFailed);
+
+            var folderPath = folder.Trim('/');
+            var searchParams = new SearchParameters
+            {
+                FolderStartsWith = recursive ? folderPath : null,
+                Folder = recursive ? null : folderPath,
+                IncludeSubfolders = false,
+                PageSize = 10000
+            };
+
+            var searchResult = await SearchAsync(searchParams, ct);
+            if (!searchResult.Success)
+                return Result<int>.Fail(searchResult);
+
+            var fileIds = searchResult.Data!.Items.Select(f => f.Id).ToList();
+            
+            if (fileIds.Count == 0)
+                return Result<int>.Ok(0);
+
+            var deleteResult = await BulkDeleteAsync(fileIds, ct);
+            if (!deleteResult.Success)
+                return Result<int>.Fail(deleteResult);
+
+            return Result<int>.Ok(deleteResult.Data!.Count);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<int>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception)
+        {
+            return Result<int>.Fail(
+                FileStorageErrors.UnexpectedErrorMessage(),
+                FileStorageErrors.UnexpectedError);
+        }
+    }
+
+    public async Task<Result<string>> CreateFolderAsync(string folderPath, CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(folderPath))
+                return Result<string>.Fail(
+                    "Folder path cannot be empty.",
+                    FileStorageErrors.ValidationFailed);
+
+            var normalizedPath = folderPath.Trim('/');
+            
+            // Check if folder already exists by looking for any files in it
+            var existingFolders = await ListFoldersAsync(null, ct);
+            if (existingFolders.Success && existingFolders.Data!.Any(f => f == normalizedPath))
+            {
+                return Result<string>.Ok(normalizedPath); // Already exists
+            }
+
+            // Create placeholder file to make folder exist
+            var placeholderName = ".stashpup_folder";
+            var placeholderContent = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("placeholder"));
+            
+            var saveResult = await SaveAsync(placeholderContent, placeholderName, normalizedPath, null, ct);
+            
+            if (!saveResult.Success)
+                return Result<string>.Fail(saveResult);
+
+            return Result<string>.Ok(normalizedPath);
+        }
+        catch (OperationCanceledException)
+        {
+            return Result<string>.Fail(
+                "Operation was cancelled.",
+                FileStorageErrors.OperationCancelled);
+        }
+        catch (Exception ex)
+        {
+            return Result<string>.Fail(
+                $"Failed to create folder: {ex.Message}",
+                FileStorageErrors.UnexpectedError);
+        }
     }
 
     private string GetFilePath(Guid id, string? folder, string fileName)
@@ -885,8 +1082,27 @@ public class LocalFileStorage : IFileStorage
         {
             var recordFolder = record.Folder ?? "";
             var searchFolder = parameters.Folder.Trim('/');
-            if (!recordFolder.Equals(searchFolder, StringComparison.OrdinalIgnoreCase) &&
-                !recordFolder.StartsWith(searchFolder + "/", StringComparison.OrdinalIgnoreCase))
+            
+            if (parameters.IncludeSubfolders)
+            {
+                // Match exact folder or subfolders
+                if (!recordFolder.Equals(searchFolder, StringComparison.OrdinalIgnoreCase) &&
+                    !recordFolder.StartsWith(searchFolder + "/", StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            else
+            {
+                // Match exact folder only
+                if (!recordFolder.Equals(searchFolder, StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(parameters.FolderStartsWith))
+        {
+            var recordFolder = record.Folder ?? "";
+            var folderPrefix = parameters.FolderStartsWith.Trim('/');
+            if (!recordFolder.StartsWith(folderPrefix, StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
