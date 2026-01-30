@@ -305,6 +305,57 @@ var results = await storage.BulkSaveAsync(items);
 // Bulk delete
 var idsToDelete = new[] { id1, id2, id3 };
 await storage.BulkDeleteAsync(idsToDelete);
+
+// Bulk move to new folder
+var idsToMove = new[] { id1, id2, id3 };
+var movedFiles = await storage.BulkMoveAsync(idsToMove, "archive/2024");
+```
+
+### Folder Operations
+
+```csharp
+// List all unique folder paths
+var foldersResult = await storage.ListFoldersAsync();
+foreach (var folder in foldersResult.Data!)
+{
+    Console.WriteLine($"Folder: {folder}");
+}
+
+// List immediate children of a parent folder
+var childFolders = await storage.ListFoldersAsync(parentFolder: "projects");
+
+// Delete folder and all contents (recursive)
+var deleteResult = await storage.DeleteFolderAsync(
+    folder: "temp/uploads",
+    recursive: true);
+Console.WriteLine($"Deleted {deleteResult.Data} files");
+
+// Delete only files in exact folder (non-recursive)
+var deleteExact = await storage.DeleteFolderAsync(
+    folder: "temp",
+    recursive: false);
+```
+
+### Advanced Folder Search
+
+```csharp
+// Search with enhanced folder filtering
+var searchParams = new SearchParameters
+{
+    FolderStartsWith = "projects/2024", // Match folders starting with prefix
+    IncludeSubfolders = true,          // Include nested subfolders (default)
+    Page = 1,
+    PageSize = 50
+};
+
+var result = await storage.SearchAsync(searchParams);
+
+// Search only in immediate folder (no subfolders)
+var exactFolderSearch = new SearchParameters
+{
+    Folder = "documents",
+    IncludeSubfolders = false, // Only files in "documents", not "documents/2024"
+};
 ```
 
 ## 🔐 Signed URLs
@@ -373,6 +424,9 @@ app.MapStashPupEndpoints("/api/files", options =>
     options.EnableDelete = true;
     options.EnableMetadata = true;
     options.EnableList = false; // Disabled by default for security
+    options.EnableFolderList = false; // Disabled by default for security
+    options.EnableFolderDelete = true;
+    options.EnableBulkMove = true;
 });
 ```
 
@@ -382,6 +436,9 @@ app.MapStashPupEndpoints("/api/files", options =>
 - `DELETE /api/files/{id}` - Delete file
 - `GET /api/files/{id}/metadata` - Get metadata
 - `GET /api/files?folder=...&page=1&pageSize=20` - List files (opt-in)
+- `GET /api/files/folders?parent=...` - List all folder paths (opt-in)
+- `DELETE /api/files/folders/{path}?recursive=true` - Delete folder and contents
+- `POST /api/files/bulk-move` - Move multiple files to new folder
 
 ### Custom Endpoints
 
