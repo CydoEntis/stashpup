@@ -40,4 +40,28 @@ public class StashPupEndpointOptions
     /// Default: false (disabled by default for security)
     /// </summary>
     public bool EnableList { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether to enable folder listing endpoint (GET /folders).
+    /// Default: false (disabled by default for security)
+    /// </summary>
+    public bool EnableFolderList { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether to enable folder deletion endpoint (DELETE /folders/{path}).
+    /// Default: true
+    /// </summary>
+    public bool EnableFolderDelete { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to enable bulk move endpoint (POST /bulk-move).
+    /// Default: true
+    /// </summary>
+    public bool EnableBulkMove { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to enable folder creation endpoint (POST /folders).
+    /// Default: true
+    /// </summary>
+    public bool EnableFolderCreate { get; set; } = true;
 }
