@@ -21,6 +21,11 @@ public class FilesModel : PageModel
     public int TotalItems { get; set; }
     public int TotalPages { get; set; }
 
+    // NEW: Folder navigation
+    public List<string> Folders { get; set; } = new();
+    public string? CurrentFolder { get; set; }
+    public List<string> Breadcrumbs { get; set; } = new();
+
     // Search and filter parameters
     public string? SearchQuery { get; set; }
     public string? Folder { get; set; }
@@ -28,6 +33,7 @@ public class FilesModel : PageModel
     public long? MinSize { get; set; }
     public long? MaxSize { get; set; }
     public string? Extension { get; set; }
+    public bool IncludeSubfolders { get; set; } = true; // NEW
 
     // Sorting
     public string SortBy { get; set; } = "CreatedAt";
@@ -50,12 +56,14 @@ public class FilesModel : PageModel
         string sortBy = "CreatedAt",
         string sortDirection = "Descending",
         string viewMode = "list",
+        bool includeSubfolders = true,
         int page = 1,
         int pageSize = 20)
     {
         // Store parameters for view
         SearchQuery = searchQuery;
         Folder = folder;
+        CurrentFolder = folder;
         ContentType = contentType;
         MinSize = minSize;
         MaxSize = maxSize;
@@ -63,14 +71,32 @@ public class FilesModel : PageModel
         SortBy = sortBy;
         SortDirection = sortDirection;
         ViewMode = viewMode;
+        IncludeSubfolders = includeSubfolders;
         CurrentPage = page;
         PageSize = pageSize;
+
+        // Build breadcrumbs for navigation
+        if (!string.IsNullOrWhiteSpace(folder))
+        {
+            Breadcrumbs = BuildBreadcrumbs(folder);
+        }
+
+        // NEW: Load folders for navigation
+        var foldersResult = await _fileStorage.ListFoldersAsync(folder);
+        if (foldersResult.Success)
+        {
+            // Get immediate children only
+            Folders = foldersResult.Data!
+                .Where(f => IsImmediateChild(f, folder))
+                .ToList();
+        }
 
         // Build search parameters
         var searchParams = new SearchParameters
         {
             NamePattern = searchQuery,
             Folder = folder,
+            IncludeSubfolders = includeSubfolders, // NEW
             ContentType = contentType,
             MinSizeBytes = minSize,
             MaxSizeBytes = maxSize,
@@ -187,6 +213,96 @@ public class FilesModel : PageModel
         return RedirectToPage(new { folder });
     }
 
+    // NEW: Bulk move files to a different folder
+    public async Task<IActionResult> OnPostBulkMoveAsync(string fileIds, string targetFolder, string? currentFolder = null)
+    {
+        if (string.IsNullOrWhiteSpace(fileIds))
+        {
+            ErrorMessage = "No files selected for move.";
+            return RedirectToPage(new { folder = currentFolder });
+        }
+
+        var ids = fileIds.Split(',')
+            .Select(id => Guid.TryParse(id, out var guid) ? guid : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            ErrorMessage = "Invalid file IDs.";
+            return RedirectToPage(new { folder = currentFolder });
+        }
+
+        var result = await _fileStorage.BulkMoveAsync(ids, targetFolder);
+        if (result.Success)
+        {
+            SuccessMessage = $"Moved {result.Data!.Count} file(s) to '{targetFolder}'.";
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Failed to move files.";
+        }
+
+        return RedirectToPage(new { folder = currentFolder });
+    }
+
+    // NEW: Delete entire folder and its contents
+    public async Task<IActionResult> OnPostDeleteFolderAsync(string folderPath, bool recursive = true)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            ErrorMessage = "Folder path cannot be empty.";
+            return RedirectToPage();
+        }
+
+        var result = await _fileStorage.DeleteFolderAsync(folderPath, recursive);
+        if (result.Success)
+        {
+            SuccessMessage = $"Deleted folder '{folderPath}' and {result.Data} file(s).";
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Failed to delete folder.";
+        }
+
+        // Navigate to parent folder
+        var parentFolder = GetParentFolder(folderPath);
+        return RedirectToPage(new { folder = parentFolder });
+    }
+
+    // NEW: Bulk delete selected files
+    public async Task<IActionResult> OnPostBulkDeleteAsync(string fileIds, string? folder = null)
+    {
+        if (string.IsNullOrWhiteSpace(fileIds))
+        {
+            ErrorMessage = "No files selected for deletion.";
+            return RedirectToPage(new { folder });
+        }
+
+        var ids = fileIds.Split(',')
+            .Select(id => Guid.TryParse(id, out var guid) ? guid : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            ErrorMessage = "Invalid file IDs.";
+            return RedirectToPage(new { folder });
+        }
+
+        var result = await _fileStorage.BulkDeleteAsync(ids);
+        if (result.Success)
+        {
+            SuccessMessage = $"Deleted {result.Data!.Count} file(s).";
+        }
+        else
+        {
+            ErrorMessage = result.ErrorMessage ?? "Failed to delete files.";
+        }
+
+        return RedirectToPage(new { folder });
+    }
+
     private SearchSortField ParseSortField(string sortBy)
     {
         return sortBy switch
@@ -206,5 +322,51 @@ public class FilesModel : PageModel
         return direction?.ToLower() == "ascending"
             ? SearchSortDirection.Ascending
             : SearchSortDirection.Descending;
+    }
+
+    // NEW: Helper methods for folder navigation
+    private List<string> BuildBreadcrumbs(string? folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath))
+            return new List<string>();
+
+        var parts = folderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var breadcrumbs = new List<string> { "" }; // Root
+
+        var accumulated = "";
+        foreach (var part in parts)
+        {
+            accumulated += part + "/";
+            breadcrumbs.Add(accumulated.TrimEnd('/'));
+        }
+
+        return breadcrumbs;
+    }
+
+    private bool IsImmediateChild(string folderPath, string? parentPath)
+    {
+        if (string.IsNullOrWhiteSpace(parentPath))
+        {
+            // Root level - check if no slashes
+            return !folderPath.Contains('/');
+        }
+
+        if (!folderPath.StartsWith(parentPath + "/"))
+            return false;
+
+        var relative = folderPath.Substring(parentPath.Length + 1);
+        return !relative.Contains('/'); // No nested slashes = immediate child
+    }
+
+    private string? GetParentFolder(string folderPath)
+    {
+        if (string.IsNullOrWhiteSpace(folderPath))
+            return null;
+
+        var lastSlash = folderPath.LastIndexOf('/');
+        if (lastSlash <= 0)
+            return null;
+
+        return folderPath.Substring(0, lastSlash);
     }
 }

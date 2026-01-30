@@ -29,7 +29,19 @@ app.UseRouting();
 app.UseAuthorization();
 
 app.UseStashPup();
-app.MapStashPupEndpoints("/api/files");
+
+// Enable all endpoints including new v0.2.0 folder operations
+app.MapStashPupEndpoints("/api/files", options =>
+{
+    options.EnableUpload = true;
+    options.EnableDownload = true;
+    options.EnableDelete = true;
+    options.EnableMetadata = true;
+    options.EnableList = false; // Keep disabled for security
+    options.EnableFolderList = true; // NEW: Enable folder listing
+    options.EnableFolderDelete = true; // NEW: Enable folder deletion
+    options.EnableBulkMove = true; // NEW: Enable bulk move
+});
 
 app.MapRazorPages();
 
