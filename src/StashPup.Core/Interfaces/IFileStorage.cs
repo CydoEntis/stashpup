@@ -119,6 +119,17 @@ public interface IFileStorage
         IEnumerable<Guid> ids,
         CancellationToken ct = default);
 
+    /// <summary>
+    /// Moves multiple files to a new folder in a single operation.
+    /// </summary>
+    /// <param name="ids">Collection of file identifiers to move.</param>
+    /// <param name="newFolder">Destination folder path.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result containing list of successfully moved FileRecords.</returns>
+    Task<Result<IReadOnlyList<FileRecord>>> BulkMoveAsync(
+        IEnumerable<Guid> ids,
+        string newFolder,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Lists files with pagination support.
@@ -173,6 +184,39 @@ public interface IFileStorage
     Task<Result<string>> GetSignedUrlAsync(
         Guid id,
         TimeSpan expiry,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets a list of all unique folder paths in storage.
+    /// </summary>
+    /// <param name="parentFolder">Optional parent folder to filter by (returns immediate children only).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result containing list of unique folder paths.</returns>
+    Task<Result<IReadOnlyList<string>>> ListFoldersAsync(
+        string? parentFolder = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes a folder and all files within it.
+    /// </summary>
+    /// <param name="folder">Folder path to delete.</param>
+    /// <param name="recursive">If true, deletes all files in subfolders as well.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result containing count of deleted files.</returns>
+    Task<Result<int>> DeleteFolderAsync(
+        string folder,
+        bool recursive = true,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates an empty folder by placing a hidden placeholder file.
+    /// Allows folders to exist without any user files, similar to Google Drive.
+    /// </summary>
+    /// <param name="folderPath">The folder path to create (e.g., "documents/2024").</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Result containing the created folder path.</returns>
+    Task<Result<string>> CreateFolderAsync(
+        string folderPath,
         CancellationToken ct = default);
 }
 
