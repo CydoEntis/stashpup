@@ -3,7 +3,7 @@
     <PropertyGroup>
         <!-- Package Identity -->
         <PackageId>StashPup.AspNetCore</PackageId>
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Authors>StashPup Contributors</Authors>
         <Company>StashPup</Company>
 
@@ -43,15 +43,14 @@
 
         <!-- Release Notes -->
         <PackageReleaseNotes>
-            Version 0.2.0 - Architecture Refactor
-            - Refactored to Vertical Slice Architecture (VSA)
-            - Each feature is self-contained (handler, endpoints, models)
-            - Removed redundant service abstraction layers
-            - Fixed multipart/form-data handling in upload endpoint
-            - Fixed ambiguous IResult references
-            - Handlers directly inject IFileStorage
-            - Simplified naming: UploadHandler, DownloadHandler, etc.
-            - Improved maintainability and extensibility
+            Version 0.2.0 - Folder Operations Update
+            - NEW: Folder endpoints (list, delete, bulk move)
+            - NEW: GET /folders - List all unique folder paths
+            - NEW: DELETE /folders/{path} - Delete folder and all contents
+            - NEW: POST /bulk-move - Move multiple files to new folder
+            - ENHANCED: Better folder management capabilities
+            - Supports nested folder operations
+            - Configurable endpoint options for folder features
             
             Version 0.1.0 - Initial Release
             - Pre-built minimal API endpoints for file operations
@@ -59,8 +58,6 @@
             - UseStashPup middleware for file serving
             - MapStashPupEndpoints for automatic API generation
             - Dependency injection extensions (AddStashPup)
-            - Configuration builder pattern
-            - Supports all storage providers
         </PackageReleaseNotes>
     </PropertyGroup>
 

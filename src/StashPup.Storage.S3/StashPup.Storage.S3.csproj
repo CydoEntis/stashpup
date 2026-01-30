@@ -3,7 +3,7 @@
     <PropertyGroup>
         <!-- Package Identity -->
         <PackageId>StashPup.Storage.S3</PackageId>
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Authors>StashPup Contributors</Authors>
         <Company>StashPup</Company>
 
@@ -43,15 +43,18 @@
 
         <!-- Release Notes -->
         <PackageReleaseNotes>
+            Version 0.2.0 - Folder Operations Update
+            - NEW: BulkMoveAsync() - Move multiple files at once
+            - NEW: ListFoldersAsync() - Get list of all unique folders
+            - NEW: DeleteFolderAsync() - Delete folder and all contents
+            - ENHANCED: Better folder filtering in search operations
+            - Improved nested folder navigation support
+            
             Version 0.1.0 - Initial Release
             - Complete IFileStorage implementation for AWS S3
             - Pre-signed URL generation
             - Server-side encryption (AES-256)
-            - Storage class support (Standard, IA, Glacier)
-            - Public read ACL support
             - Thumbnail generation and caching in S3
-            - Object metadata for file information
-            - Advanced search and pagination
         </PackageReleaseNotes>
     </PropertyGroup>
 

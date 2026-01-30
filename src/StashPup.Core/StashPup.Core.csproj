@@ -3,7 +3,7 @@
     <PropertyGroup>
         <!-- Package Identity -->
         <PackageId>StashPup.Core</PackageId>
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Authors>StashPup Contributors</Authors>
         <Company>StashPup</Company>
 
@@ -43,14 +43,20 @@
 
         <!-- Release Notes -->
         <PackageReleaseNotes>
+            Version 0.2.0 - Folder Operations Update
+            - NEW: BulkMoveAsync() - Move multiple files at once
+            - NEW: ListFoldersAsync() - Get list of all unique folders
+            - NEW: DeleteFolderAsync() - Delete folder and all contents
+            - ENHANCED: SearchParameters with FolderStartsWith and IncludeSubfolders
+            - Better support for nested folder hierarchies
+            - Improved folder filtering in search operations
+            
             Version 0.1.0 - Initial Release
-            - Core IFileStorage interface with 15 methods
+            - Core IFileStorage interface
             - Result pattern for error handling
             - FileRecord model with complete metadata
             - SearchParameters for advanced filtering
             - Support for pagination, sorting, and bulk operations
-            - Thumbnail size enumeration
-            - Validation and error handling
         </PackageReleaseNotes>
     </PropertyGroup>
 
