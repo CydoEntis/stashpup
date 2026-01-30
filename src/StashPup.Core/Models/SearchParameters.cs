@@ -16,6 +16,18 @@ public class SearchParameters
     public string? Folder { get; set; }
 
     /// <summary>
+    /// Filter by folders starting with this prefix (for nested folder queries).
+    /// When set, includes all files in matching folders and subfolders.
+    /// </summary>
+    public string? FolderStartsWith { get; set; }
+
+    /// <summary>
+    /// Include files in subfolders when filtering by Folder or FolderStartsWith.
+    /// Default is true.
+    /// </summary>
+    public bool IncludeSubfolders { get; set; } = true;
+
+    /// <summary>
     /// Filter by file extension (e.g., ".jpg", ".png").
     /// </summary>
     public string? Extension { get; set; }
