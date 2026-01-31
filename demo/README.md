@@ -13,12 +13,20 @@ A working demo of the StashPup file storage library showcasing all major feature
 - ✅ **Error Handling** - Proper error messages and validation
 
 ### NEW Folder Operations (v0.2.0)
+- ✨ **Create Empty Folders** - Create folders that don't have files yet
 - ✨ **Folder Navigation** - Browse through folder hierarchies with breadcrumbs
-- ✨ **List Folders** - See all available folders at any level
+- ✨ **List Folders** - See all folders (both with files and empty)
 - ✨ **Bulk Move** - Move multiple files to a different folder at once
 - ✨ **Delete Folder** - Delete entire folders and their contents recursively
 - ✨ **Bulk Delete** - Delete multiple files at once
 - ✨ **Subfolder Filtering** - Toggle between including/excluding subfolders in search
+
+> **How Empty Folders Work:**  
+> **StashPup** handles files and their folder paths - folders are just string prefixes (virtual folders).  
+> **Demo App** tracks empty folders in memory using a `HashSet<string>`.  
+> **In Your Real App**, store empty folders in your database table.  
+> 
+> When you upload a file to an empty folder, it becomes a "real" folder in StashPup, and the demo removes it from the empty folders list. This is the **clean separation of concerns** approach!
 
 ## Quick Start
 
@@ -38,8 +46,9 @@ A working demo of the StashPup file storage library showcasing all major feature
    - Click "Go to File Manager" or use the "Files" navigation link
 
 3. **Test the features:**
+   - Click "New Folder" to create empty folders for organization
    - Upload various file types (images, PDFs, documents)
-   - Try organizing files into folders
+   - Try organizing files into folders by specifying folder paths during upload
    - Navigate through folders using breadcrumbs
    - Select multiple files and move them to a different folder
    - Delete entire folders and their contents
@@ -56,6 +65,7 @@ The demo is configured in `Program.cs` with:
 - **Max File Size:** 50MB
 - **Allowed Extensions:** `.jpg`, `.jpeg`, `.png`, `.gif`, `.pdf`, `.txt`, `.doc`, `.docx`
 - **Allowed Content Types:** `image/*`, `application/pdf`, `text/*`, `application/msword`
+- **Empty Folders:** Tracked in-memory (use a database in production)
 
 ## API Endpoints
 

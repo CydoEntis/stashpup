@@ -9,6 +9,10 @@ public class FilesModel : PageModel
 {
     private readonly IFileStorage _fileStorage;
 
+    // DEMO ONLY: Track empty folders in-memory
+    // In a real app, store these in your database
+    private static readonly HashSet<string> EmptyFolders = new(StringComparer.OrdinalIgnoreCase);
+
     public FilesModel(IFileStorage fileStorage)
     {
         _fileStorage = fileStorage;
@@ -82,14 +86,27 @@ public class FilesModel : PageModel
         }
 
         // NEW: Load folders for navigation
+        // Merge real folders (from StashPup) with empty folders (demo UI tracking)
+        var realFolders = new List<string>();
         var foldersResult = await _fileStorage.ListFoldersAsync(folder);
         if (foldersResult.Success)
         {
-            // Get immediate children only
-            Folders = foldersResult.Data!
+            // Get immediate children only from StashPup
+            realFolders = foldersResult.Data!
                 .Where(f => IsImmediateChild(f, folder))
                 .ToList();
         }
+
+        // Get empty folders that are immediate children of current folder
+        var emptyFolderChildren = EmptyFolders
+            .Where(f => IsImmediateChild(f, folder))
+            .ToList();
+
+        // Merge and deduplicate (real folders take precedence)
+        Folders = realFolders
+            .Union(emptyFolderChildren, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(f => f)
+            .ToList();
 
         // Build search parameters
         var searchParams = new SearchParameters
@@ -136,6 +153,12 @@ public class FilesModel : PageModel
         if (result.Success)
         {
             SuccessMessage = $"File '{result.Data!.Name}' uploaded successfully!";
+            
+            // Remove folder from EmptyFolders if it was empty
+            if (!string.IsNullOrEmpty(folder))
+            {
+                EmptyFolders.Remove(folder.Trim('/'));
+            }
         }
         else
         {
@@ -163,6 +186,12 @@ public class FilesModel : PageModel
         if (result.Success)
         {
             SuccessMessage = $"{result.Data!.Count} file(s) uploaded successfully!";
+            
+            // Remove folder from EmptyFolders if it was empty
+            if (!string.IsNullOrEmpty(folder))
+            {
+                EmptyFolders.Remove(folder.Trim('/'));
+            }
         }
         else
         {
@@ -301,6 +330,34 @@ public class FilesModel : PageModel
         }
 
         return RedirectToPage(new { folder });
+    }
+
+    public async Task<IActionResult> OnPostCreateFolderAsync(string folderName, string? currentFolder = null)
+    {
+        if (string.IsNullOrWhiteSpace(folderName))
+        {
+            ErrorMessage = "Folder name cannot be empty.";
+            return RedirectToPage(new { folder = currentFolder });
+        }
+
+        // Build full path
+        var fullPath = string.IsNullOrEmpty(currentFolder) 
+            ? folderName.Trim('/') 
+            : $"{currentFolder.Trim('/')}/{folderName.Trim('/')}";
+
+        // DEMO APPROACH: Track empty folder in memory
+        // In a real app, you'd store this in your database
+        // StashPup doesn't handle empty folders - that's the app's responsibility!
+        if (EmptyFolders.Add(fullPath))
+        {
+            SuccessMessage = $"Folder '{fullPath}' created! Upload files to it to make it permanent.";
+        }
+        else
+        {
+            SuccessMessage = $"Folder '{fullPath}' already exists.";
+        }
+
+        return await Task.FromResult(RedirectToPage(new { folder = currentFolder }));
     }
 
     private SearchSortField ParseSortField(string sortBy)
