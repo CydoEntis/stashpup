@@ -313,8 +313,14 @@ var movedFiles = await storage.BulkMoveAsync(idsToMove, "archive/2024");
 
 ### Folder Operations
 
+**StashPup uses a fully virtual folder model** - folders are just path prefixes on files. This means:
+- ✅ Folders are created automatically when you upload files to a path
+- ✅ StashPup handles all folder operations (list, move, delete, search)
+- ✅ Your app manages "empty folder" state in its own database if needed
+- ✅ Works consistently across Local, S3, and Azure storage
+
 ```csharp
-// List all unique folder paths
+// List all unique folder paths (folders that have files)
 var foldersResult = await storage.ListFoldersAsync();
 foreach (var folder in foldersResult.Data!)
 {
@@ -335,6 +341,38 @@ var deleteExact = await storage.DeleteFolderAsync(
     folder: "temp",
     recursive: false);
 ```
+
+#### Implementing Empty Folders in Your App
+
+**StashPup doesn't manage empty folders** - that's your app's responsibility! Here's how:
+
+```csharp
+// 1. Create database table for empty folders
+public class EmptyFolder
+{
+    public string Path { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public Guid UserId { get; set; }
+}
+
+// 2. When user creates folder
+db.EmptyFolders.Add(new EmptyFolder { Path = "Photos/2024", UserId = currentUserId });
+await db.SaveChangesAsync();
+
+// 3. Display merged list of folders
+var realFolders = await storage.ListFoldersAsync();
+var emptyFolders = await db.EmptyFolders.Where(f => f.UserId == currentUserId).ToListAsync();
+var allFolders = realFolders.Data.Union(emptyFolders.Select(f => f.Path));
+
+// 4. When file uploaded to empty folder, remove it
+if (await db.EmptyFolders.AnyAsync(f => f.Path == uploadFolder))
+{
+    db.EmptyFolders.RemoveRange(db.EmptyFolders.Where(f => f.Path == uploadFolder));
+    await db.SaveChangesAsync();
+}
+```
+
+This keeps **clean separation**: StashPup handles files, your app handles empty folder UI!
 
 ### Advanced Folder Search
 
