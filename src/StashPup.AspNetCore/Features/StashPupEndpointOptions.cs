@@ -58,10 +58,4 @@ public class StashPupEndpointOptions
     /// Default: true
     /// </summary>
     public bool EnableBulkMove { get; set; } = true;
-
-    /// <summary>
-    /// Gets or sets whether to enable folder creation endpoint (POST /folders).
-    /// Default: true
-    /// </summary>
-    public bool EnableFolderCreate { get; set; } = true;
 }

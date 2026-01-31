@@ -30,7 +30,6 @@ public static class StashPupEndpoints
     /// - GET {prefix}/{id}/metadata - Get file metadata
     /// - GET {prefix}?folder=...&amp;page=1&amp;pageSize=20 - List files
     /// - GET {prefix}/folders - List all folder paths
-    /// - POST {prefix}/folders - Create new empty folder
     /// - DELETE {prefix}/folders/{path} - Delete folder and contents
     /// - POST {prefix}/bulk-move - Move multiple files to new folder
     /// </remarks>
@@ -64,9 +63,6 @@ public static class StashPupEndpoints
 
         if (options.EnableFolderList)
             group.MapListFoldersEndpoint();
-
-        if (options.EnableFolderCreate)
-            group.MapCreateFolderEndpoint();
 
         if (options.EnableFolderDelete)
             group.MapDeleteFolderEndpoint();

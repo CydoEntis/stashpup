@@ -95,27 +95,6 @@ public static class FoldersHandler
             NewFolder = newFolder
         };
     }
-
-    /// <summary>
-    /// Creates a new empty folder.
-    /// </summary>
-    public static async Task<CreateFolderResponse> HandleCreateFolder(
-        IFileStorage storage,
-        string folderPath,
-        CancellationToken ct)
-    {
-        var result = await storage.CreateFolderAsync(folderPath, ct);
-        
-        if (!result.Success)
-        {
-            throw new InvalidOperationException(result.ErrorMessage ?? "Failed to create folder");
-        }
-
-        return new CreateFolderResponse(
-            result.Data!,
-            $"Folder '{result.Data}' created successfully"
-        );
-    }
 }
 
 /// <summary>

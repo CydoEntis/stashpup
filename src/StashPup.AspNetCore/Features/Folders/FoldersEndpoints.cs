@@ -108,32 +108,6 @@ public static class FoldersEndpoints
 
         return group;
     }
-
-    /// <summary>
-    /// Maps the create folder endpoint.
-    /// POST /folders - Create a new empty folder
-    /// </summary>
-    public static RouteGroupBuilder MapCreateFolderEndpoint(this RouteGroupBuilder group)
-    {
-        group.MapPost("/folders", async (
-            [FromServices] IFileStorage storage,
-            [FromBody] CreateFolderRequest request,
-            CancellationToken ct) =>
-        {
-            if (string.IsNullOrWhiteSpace(request.FolderPath))
-                return Results.BadRequest(new { error = "Folder path cannot be empty" });
-
-            var response = await FoldersHandler.HandleCreateFolder(storage, request.FolderPath, ct);
-            return Results.Ok(response);
-        })
-        .WithName("CreateFolder")
-        .WithSummary("Create a new empty folder")
-        .WithDescription("Creates an empty folder that persists even without files, similar to Google Drive.")
-        .Produces<CreateFolderResponse>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status400BadRequest);
-
-        return group;
-    }
 }
 
 /// <summary>
