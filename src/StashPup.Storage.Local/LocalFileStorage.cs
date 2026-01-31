@@ -526,8 +526,7 @@ public class LocalFileStorage : IFileStorage
                 {
                     var json = await File.ReadAllTextAsync(metaFile, ct);
                     var record = JsonSerializer.Deserialize<FileRecord>(json);
-                    // Filter out placeholder files from list results
-                    if (record != null && record.Name != ".stashpup_folder")
+                    if (record != null)
                         allFiles.Add(record);
                 }
                 catch
@@ -571,11 +570,9 @@ public class LocalFileStorage : IFileStorage
             if (searchParameters.PageSize < 1) searchParameters.PageSize = 100;
             if (searchParameters.PageSize > 1000) searchParameters.PageSize = 1000;
 
-            var searchPath = string.IsNullOrWhiteSpace(searchParameters.Folder)
-                ? _options.BasePath
-                : Path.Combine(_options.BasePath, searchParameters.Folder.Trim('/'));
-
-            if (!Directory.Exists(searchPath))
+            // Always search metadata from the root .metadata directory
+            var metadataDir = Path.Combine(_options.BasePath, ".metadata");
+            if (!Directory.Exists(metadataDir))
                 return Result<PaginatedResult<FileRecord>>.Ok(new PaginatedResult<FileRecord>
                 {
                     Items = [],
@@ -585,7 +582,7 @@ public class LocalFileStorage : IFileStorage
                 });
 
             var allFiles = new List<FileRecord>();
-            var metadataFiles = Directory.GetFiles(searchPath, "*.meta.json", SearchOption.AllDirectories);
+            var metadataFiles = Directory.GetFiles(metadataDir, "*.meta.json", SearchOption.TopDirectoryOnly);
 
             foreach (var metaFile in metadataFiles)
             {
@@ -595,10 +592,7 @@ public class LocalFileStorage : IFileStorage
                 {
                     var json = await File.ReadAllTextAsync(metaFile, ct);
                     var record = JsonSerializer.Deserialize<FileRecord>(json);
-                    // Filter out placeholder files from search results
-                    if (record != null && 
-                        record.Name != ".stashpup_folder" && 
-                        MatchesSearchCriteria(record, searchParameters))
+                    if (record != null && MatchesSearchCriteria(record, searchParameters))
                         allFiles.Add(record);
                 }
                 catch
@@ -882,49 +876,6 @@ public class LocalFileStorage : IFileStorage
         {
             return Result<int>.Fail(
                 FileStorageErrors.UnexpectedErrorMessage(),
-                FileStorageErrors.UnexpectedError);
-        }
-    }
-
-    public async Task<Result<string>> CreateFolderAsync(string folderPath, CancellationToken ct = default)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(folderPath))
-                return Result<string>.Fail(
-                    "Folder path cannot be empty.",
-                    FileStorageErrors.ValidationFailed);
-
-            var normalizedPath = folderPath.Trim('/');
-            
-            // Check if folder already exists by looking for any files in it
-            var existingFolders = await ListFoldersAsync(null, ct);
-            if (existingFolders.Success && existingFolders.Data!.Any(f => f == normalizedPath))
-            {
-                return Result<string>.Ok(normalizedPath); // Already exists
-            }
-
-            // Create placeholder file to make folder exist
-            var placeholderName = ".stashpup_folder";
-            var placeholderContent = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("placeholder"));
-            
-            var saveResult = await SaveAsync(placeholderContent, placeholderName, normalizedPath, null, ct);
-            
-            if (!saveResult.Success)
-                return Result<string>.Fail(saveResult);
-
-            return Result<string>.Ok(normalizedPath);
-        }
-        catch (OperationCanceledException)
-        {
-            return Result<string>.Fail(
-                "Operation was cancelled.",
-                FileStorageErrors.OperationCancelled);
-        }
-        catch (Exception ex)
-        {
-            return Result<string>.Fail(
-                $"Failed to create folder: {ex.Message}",
                 FileStorageErrors.UnexpectedError);
         }
     }
