@@ -207,17 +207,6 @@ public interface IFileStorage
         string folder,
         bool recursive = true,
         CancellationToken ct = default);
-
-    /// <summary>
-    /// Creates an empty folder by placing a hidden placeholder file.
-    /// Allows folders to exist without any user files, similar to Google Drive.
-    /// </summary>
-    /// <param name="folderPath">The folder path to create (e.g., "documents/2024").</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Result containing the created folder path.</returns>
-    Task<Result<string>> CreateFolderAsync(
-        string folderPath,
-        CancellationToken ct = default);
 }
 
 /// <summary>
