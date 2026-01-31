@@ -548,9 +548,7 @@ public class AzureBlobFileStorage : IFileStorage
                     if (customMetadata.Any())
                         record.Metadata = customMetadata;
 
-                    // Filter out placeholder files from list results
-                    if (record.Name != ".stashpup_folder")
-                        allFiles.Add(record);
+                    allFiles.Add(record);
                 }
             }
 
@@ -699,8 +697,7 @@ public class AzureBlobFileStorage : IFileStorage
                     if (customMetadata.Any())
                         record.Metadata = customMetadata;
 
-                    // Filter out placeholder files from search results
-                    if (record.Name != ".stashpup_folder" && MatchesSearchCriteria(record, searchParameters))
+                    if (MatchesSearchCriteria(record, searchParameters))
                         allFiles.Add(record);
                 }
                 catch
@@ -987,49 +984,6 @@ public class AzureBlobFileStorage : IFileStorage
         {
             return Result<int>.Fail(
                 $"Unexpected error: {ex.Message}",
-                FileStorageErrors.UnexpectedError);
-        }
-    }
-
-    public async Task<Result<string>> CreateFolderAsync(string folderPath, CancellationToken ct = default)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(folderPath))
-                return Result<string>.Fail(
-                    "Folder path cannot be empty.",
-                    FileStorageErrors.ValidationFailed);
-
-            var normalizedPath = folderPath.Trim('/');
-            
-            // Check if folder already exists
-            var existingFolders = await ListFoldersAsync(null, ct);
-            if (existingFolders.Success && existingFolders.Data!.Any(f => f == normalizedPath))
-            {
-                return Result<string>.Ok(normalizedPath); // Already exists
-            }
-
-            // Create placeholder file to make folder exist
-            var placeholderName = ".stashpup_folder";
-            var placeholderContent = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("placeholder"));
-            
-            var saveResult = await SaveAsync(placeholderContent, placeholderName, normalizedPath, null, ct);
-            
-            if (!saveResult.Success)
-                return Result<string>.Fail(saveResult);
-
-            return Result<string>.Ok(normalizedPath);
-        }
-        catch (OperationCanceledException)
-        {
-            return Result<string>.Fail(
-                "Operation was cancelled.",
-                FileStorageErrors.OperationCancelled);
-        }
-        catch (Exception ex)
-        {
-            return Result<string>.Fail(
-                $"Failed to create folder: {ex.Message}",
                 FileStorageErrors.UnexpectedError);
         }
     }
