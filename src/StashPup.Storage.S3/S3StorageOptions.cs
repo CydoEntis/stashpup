@@ -55,4 +55,19 @@ public class S3StorageOptions : FileStorageOptions
     /// Default: true
     /// </summary>
     public bool EnableEncryption { get; set; } = true;
+
+    /// <summary>
+    /// Custom S3-compatible service URL (e.g., "http://garage-server:3900").
+    /// When set, the SDK connects to this endpoint instead of AWS S3.
+    /// Required for S3-compatible services like Garage, MinIO, etc.
+    /// </summary>
+    public string? ServiceUrl { get; set; }
+
+    /// <summary>
+    /// Whether to use path-style addressing (e.g., http://host/bucket/key)
+    /// instead of virtual-hosted style (e.g., http://bucket.host/key).
+    /// Required for most S3-compatible services like Garage.
+    /// Default: false
+    /// </summary>
+    public bool ForcePathStyle { get; set; } = false;
 }

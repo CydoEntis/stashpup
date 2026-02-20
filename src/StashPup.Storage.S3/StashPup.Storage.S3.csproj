@@ -3,7 +3,7 @@
     <PropertyGroup>
         <!-- Package Identity -->
         <PackageId>StashPup.Storage.S3</PackageId>
-        <Version>0.2.0</Version>
+        <Version>1.0.0</Version>
         <Authors>StashPup Contributors</Authors>
         <Company>StashPup</Company>
 
@@ -43,6 +43,11 @@
 
         <!-- Release Notes -->
         <PackageReleaseNotes>
+            Version 1.0.0 - S3-Compatible Endpoint Support
+            - NEW: ServiceUrl option for custom S3-compatible endpoints (Garage, MinIO, etc.)
+            - NEW: ForcePathStyle option for path-style bucket addressing
+            - ENHANCED: GetPublicUrl() now works with custom endpoints
+
             Version 0.2.0 - Folder Operations Update
             - NEW: BulkMoveAsync() - Move multiple files at once
             - NEW: ListFoldersAsync() - Get list of all unique folders

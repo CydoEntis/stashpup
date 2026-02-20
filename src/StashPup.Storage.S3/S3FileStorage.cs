@@ -32,10 +32,17 @@ public class S3FileStorage : IFileStorage
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
 
-        var config = new AmazonS3Config
+        var config = new AmazonS3Config();
+
+        if (!string.IsNullOrWhiteSpace(options.ServiceUrl))
         {
-            RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(options.Region)
-        };
+            config.ServiceURL = options.ServiceUrl;
+            config.ForcePathStyle = options.ForcePathStyle;
+        }
+        else
+        {
+            config.RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(options.Region);
+        }
 
         if (!string.IsNullOrWhiteSpace(options.AccessKeyId) && !string.IsNullOrWhiteSpace(options.SecretAccessKey))
         {
@@ -653,6 +660,15 @@ public class S3FileStorage : IFileStorage
                 return null;
 
             var record = metadataResult.Data!;
+
+            if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+            {
+                var baseUrl = _options.ServiceUrl.TrimEnd('/');
+                return _options.ForcePathStyle
+                    ? $"{baseUrl}/{_options.BucketName}/{record.StoragePath}"
+                    : $"{baseUrl}/{record.StoragePath}";
+            }
+
             var region = Amazon.RegionEndpoint.GetBySystemName(_options.Region);
             return $"https://{_options.BucketName}.s3.{region.SystemName}.amazonaws.com/{record.StoragePath}";
         }
