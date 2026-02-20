@@ -38,6 +38,7 @@ public class S3FileStorage : IFileStorage
         {
             config.ServiceURL = options.ServiceUrl;
             config.ForcePathStyle = options.ForcePathStyle;
+            config.AuthenticationRegion = options.Region;
         }
         else
         {

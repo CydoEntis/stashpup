@@ -200,6 +200,21 @@ builder.Services.AddStashPup(stash => stash
     }));
 ```
 
+### S3-Compatible Services (MinIO, Garage, etc.)
+
+```csharp
+builder.Services.AddStashPup(stash => stash
+    .UseS3(options =>
+    {
+        options.BucketName = "my-bucket";
+        options.Region = "garage";              // Your service's region
+        options.AccessKeyId = "AKIA...";
+        options.SecretAccessKey = "secret";
+        options.ServiceUrl = "https://s3.example.com"; // Custom endpoint
+        options.ForcePathStyle = true;          // Required for most S3-compatible services
+    }));
+```
+
 ### Azure Blob Storage
 
 ```csharp
